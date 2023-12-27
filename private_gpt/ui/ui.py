@@ -286,6 +286,12 @@ class PrivateGptUi:
                             ),
                         ),
                         additional_inputs=[mode, upload_button, system_prompt_input],
+                        analytics_enabled=True,
+                        submit_btn="📤 Отправить",
+                        stop_btn="⛔ Остановить",
+                        retry_btn="🔄 Повторить",
+                        undo_btn="↩️ Назад",
+                        clear_btn="🗑️  Очистить"
                     )
         return blocks
 
