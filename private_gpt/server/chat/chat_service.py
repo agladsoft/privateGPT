@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 
 from injector import inject, singleton
@@ -19,6 +20,8 @@ from private_gpt.components.vector_store.vector_store_component import (
 )
 from private_gpt.open_ai.extensions.context_filter import ContextFilter
 from private_gpt.server.chunks.chunks_service import Chunk
+
+logger = logging.getLogger(__name__)
 
 
 class Completion(BaseModel):
@@ -128,6 +131,7 @@ class ChatService:
             if chat_engine_input.last_message
             else None
         )
+        logger.info(f"Last message is {last_message}")
         system_prompt = (
             chat_engine_input.system_message.content
             if chat_engine_input.system_message
@@ -142,6 +146,9 @@ class ChatService:
             use_context=use_context,
             context_filter=context_filter,
         )
+        logger.info(f"System prompt is {system_prompt}")
+        logger.info(f"Use context is {use_context}")
+        logger.info(f"Context filter is {context_filter}")
         streaming_response = chat_engine.stream_chat(
             message=last_message if last_message is not None else "",
             chat_history=chat_history,

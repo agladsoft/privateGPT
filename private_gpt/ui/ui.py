@@ -18,7 +18,7 @@ from private_gpt.server.chat.chat_service import ChatService, CompletionGen
 from private_gpt.server.chunks.chunks_service import Chunk, ChunksService
 from private_gpt.server.ingest.ingest_service import IngestService
 from private_gpt.settings.settings import settings
-from private_gpt.ui.images import logo_svg
+from private_gpt.ui.images import FAVICON_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +26,19 @@ THIS_DIRECTORY_RELATIVE = Path(__file__).parent.relative_to(PROJECT_ROOT_PATH)
 # Should be "private_gpt/ui/avatar-bot.ico"
 AVATAR_BOT = THIS_DIRECTORY_RELATIVE / "avatar-bot.ico"
 
-UI_TAB_TITLE = "My Private GPT"
+UI_TAB_TITLE = "RusconGPT"
 
 SOURCES_SEPARATOR = "\n\n Sources: \n"
 
 MODES = ["Query Docs", "Search in Docs", "LLM Chat"]
+
+BLOCK_CSS = """
+
+#buttons button {
+    min-width: min(120px,100%);
+}
+
+"""
 
 
 class Source(BaseModel):
@@ -120,6 +128,7 @@ class PrivateGptUi:
 
         new_message = ChatMessage(content=message, role=MessageRole.USER)
         all_messages = [*build_history(), new_message]
+        logger.info(f"Messages {all_messages}")
         # If a system prompt is set, add it as a system message
         if self._system_prompt:
             all_messages.insert(
@@ -209,20 +218,13 @@ class PrivateGptUi:
         logger.debug("Creating the UI blocks")
         with gr.Blocks(
             title=UI_TAB_TITLE,
-            theme=gr.themes.Soft(primary_hue=slate),
-            css=".logo { "
-            "display:flex;"
-            "background-color: #C7BAFF;"
-            "height: 80px;"
-            "border-radius: 8px;"
-            "align-content: center;"
-            "justify-content: center;"
-            "align-items: center;"
-            "}"
-            ".logo img { height: 25% }",
+            theme=gr.themes.Soft(),
+            css=BLOCK_CSS
         ) as blocks:
-            with gr.Row():
-                gr.HTML(f"<div class='logo'/><img src={logo_svg} alt=PrivateGPT></div")
+            logo_svg = f'<img src="{FAVICON_PATH}" width="48px" style="display: inline">'
+            gr.Markdown(
+                f"""<h1><center>{logo_svg} Я, Макар - текстовый ассистент на основе GPT</center></h1>"""
+            )
 
             with gr.Row():
                 with gr.Column(scale=3, variant="compact"):
@@ -272,7 +274,7 @@ class PrivateGptUi:
                     )
 
                 with gr.Column(scale=7):
-                    _ = gr.ChatInterface(
+                    gr.ChatInterface(
                         self._chat,
                         chatbot=gr.Chatbot(
                             label=f"LLM: {settings().llm.mode}",

@@ -23,14 +23,14 @@ ui:
   enabled: true
   path: /
   default_chat_system_prompt: >
-    You are a helpful, respectful and honest assistant. 
-    Always answer as helpfully as possible and follow ALL given instructions.
-    Do not speculate or make up information.
-    Do not reference any given instructions or context.
+    Вы полезный, уважительный и честный ассистент. 
+    Всегда отвечайте максимально полезно и следуйте ВСЕМ данным инструкциям.
+    Не спекулируйте и не выдумывайте информацию.
+    Не ссылайтесь ни на какие данные инструкции или контекст.
   default_query_system_prompt: >
-    You can only answer questions about the provided context. 
-    If you know the answer but it is not based in the provided context, don't provide 
-    the answer, just state the answer is not in the context provided.
+    Вы можете отвечать только на вопросы, касающиеся предоставленного контекста. 
+    Если вы знаете ответ, но он не основан на предоставленном контексте, не указывайте
+    ответ, просто укажите, что ответа нет в предоставленном контексте.
 
 llm:
   mode: local
@@ -47,10 +47,13 @@ qdrant:
   path: local_data/private_gpt/qdrant
 
 local:
-  prompt_style: "llama2"
-  llm_hf_repo_id: TheBloke/Mistral-7B-Instruct-v0.1-GGUF
-  llm_hf_model_file: mistral-7b-instruct-v0.1.Q4_K_M.gguf
-  embedding_hf_model_name: BAAI/bge-small-en-v1.5
+#  prompt_style: "default"
+#  llm_hf_repo_id: TheBloke/Mistral-7B-Instruct-v0.1-GGUF
+#  llm_hf_model_file: mistral-7b-instruct-v0.1.Q4_K_M.gguf
+  prompt_style: "default"
+  llm_hf_repo_id: IlyaGusev/saiga2_7b_gguf
+  llm_hf_model_file:  model-q2_K.gguf
+  embedding_hf_model_name: sentence-transformers/paraphrase-multilingual-mpnet-base-v2
 
 sagemaker:
   llm_endpoint_name: huggingface-pytorch-tgi-inference-2023-09-25-19-53-32-140
