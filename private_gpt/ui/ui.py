@@ -225,12 +225,13 @@ class PrivateGptUi:
             case "LLM":
                 yield from yield_deltas(gen_message)
             case "Search in DB":
-                yield "\n\n\n".join(
+                history[-1][1] = "\n\n\n".join(
                     f"{index}. **{source.file} "
                     f"(page {source.page})**\n "
                     f"{source.text}"
                     for index, source in enumerate(gen_message, start=1)
                 )
+                yield history
 
     def _upload_file(self, files: list[str]) -> None:
         logger.debug("Loading count=%s files", len(files))
@@ -380,7 +381,7 @@ class PrivateGptUi:
                 queue=True,
             ).success(
                 fn=self._chat,
-                inputs=[msg, response, mode],
+                inputs=[chatbot, response, mode],
                 outputs=chatbot,
                 queue=True,
             )
