@@ -261,7 +261,7 @@ class PrivateGptUi:
                     )
 
             with gr.Row():
-                with gr.Column(scale=4, variant="compact"):
+                with gr.Column(scale=5, variant="compact"):
                     mode = gr.Radio(
                         MODES,
                         label="Коллекции",
