@@ -31,7 +31,7 @@ UI_TAB_TITLE = "RusconGPT"
 
 SOURCES_SEPARATOR = "\n\n Sources: \n"
 
-MODES = ["Query Docs", "Search in Docs", "LLM Chat"]
+MODES = ["DB", "Search in DB", "LLM"]
 
 BLOCK_CSS = """
 
@@ -86,26 +86,7 @@ class PrivateGptUi:
         self.mode = MODES[0]
         self._system_prompt = self._get_default_system_prompt(self.mode)
 
-    def _chat(self, message: str, history: list[list[str]], mode: str, *_: Any) -> Any:
-        def yield_deltas(completion_gen: CompletionGen) -> Iterable[str]:
-            full_response: str = ""
-            stream = completion_gen.response
-            for delta in stream:
-                if isinstance(delta, str):
-                    full_response += str(delta)
-                elif isinstance(delta, ChatResponse):
-                    full_response += delta.delta or ""
-                yield full_response
-
-            if completion_gen.sources:
-                full_response += SOURCES_SEPARATOR
-                cur_sources = Source.curate_sources(completion_gen.sources)
-                sources_text = "\n\n\n".join(
-                    f"{index}. {source.file} (page {source.page})"
-                    for index, source in enumerate(cur_sources, start=1)
-                )
-                full_response += sources_text
-            yield full_response
+    def _get_context(self, message: str, history: list[list[str]], mode: str, *_: Any) -> Any:
 
         def build_history() -> list[ChatMessage]:
             history_messages: list[ChatMessage] = list(
@@ -125,7 +106,7 @@ class PrivateGptUi:
             )
 
             # max 20 messages to try to avoid context overflow
-            return history_messages[:20]
+            return history_messages[:3]
 
         new_message = ChatMessage(content=message, role=MessageRole.USER)
         all_messages = [*build_history(), new_message]
@@ -140,32 +121,35 @@ class PrivateGptUi:
                 ),
             )
         match mode:
-            case "Query Docs":
-                query_stream = self._chat_service.stream_chat(
+            case "DB":
+                query_stream, content = self._chat_service.stream_chat(
                     messages=all_messages,
                     use_context=True,
                 )
-                yield from yield_deltas(query_stream)
-            case "LLM Chat":
+                return query_stream, content
+                # logger.info(content)
+                # yield from yield_deltas(query_stream)
+            case "LLM":
                 llm_stream = self._chat_service.stream_chat(
                     messages=all_messages,
                     use_context=False,
                 )
-                yield from yield_deltas(llm_stream)
+                return llm_stream, "Появятся после задавания вопросов"
+                # yield from yield_deltas(llm_stream)
 
-            case "Search in Docs":
+            case "Search in DB":
                 response = self._chunks_service.retrieve_relevant(
                     text=message, limit=4, prev_next_chunks=0
                 )
 
                 sources = Source.curate_sources(response)
-
-                yield "\n\n\n".join(
-                    f"{index}. **{source.file} "
-                    f"(page {source.page})**\n "
-                    f"{source.text}"
-                    for index, source in enumerate(sources, start=1)
-                )
+                return sources, "Появятся после задавания вопросов"
+                # yield "\n\n\n".join(
+                #     f"{index}. **{source.file} "
+                #     f"(page {source.page})**\n "
+                #     f"{source.text}"
+                #     for index, source in enumerate(sources, start=1)
+                # )
 
     # On initialization and on mode change, this function set the system prompt
     # to the default prompt based on the mode (and user settings).
@@ -174,10 +158,10 @@ class PrivateGptUi:
         p = ""
         match mode:
             # For query chat mode, obtain default system prompt from settings
-            case "Query Docs":
+            case "DB":
                 p = settings().ui.default_query_system_prompt
             # For chat mode, obtain default system prompt from settings
-            case "LLM Chat":
+            case "LLM":
                 p = settings().ui.default_chat_system_prompt
             # For any other mode, clear the system prompt
             case _:
@@ -210,6 +194,51 @@ class PrivateGptUi:
             files.add(file_name)
         return [[row] for row in files]
 
+    @staticmethod
+    def regenerate_response(history):
+        """
+
+        :param history:
+        :return:
+        """
+        return "", history
+
+    @staticmethod
+    def _chat(message, mode):
+
+        def yield_deltas(completion_gen: CompletionGen) -> Iterable[str]:
+            full_response: str = ""
+            stream = completion_gen.response
+            for delta in stream:
+                if isinstance(delta, str):
+                    full_response += str(delta)
+                elif isinstance(delta, ChatResponse):
+                    full_response += delta.delta or ""
+                yield full_response
+
+            if completion_gen.sources:
+                full_response += SOURCES_SEPARATOR
+                cur_sources = Source.curate_sources(completion_gen.sources)
+                sources_text = "\n\n\n".join(
+                    f"{index}. {source.file} (page {source.page})"
+                    for index, source in enumerate(cur_sources, start=1)
+                )
+                full_response += sources_text
+            yield full_response
+
+        match mode:
+            case "DB":
+                yield from yield_deltas(message)
+            case "LLM":
+                yield from yield_deltas(message)
+            case "Search in DB":
+                yield "\n\n\n".join(
+                    f"{index}. **{source.file} "
+                    f"(page {source.page})**\n "
+                    f"{source.text}"
+                    for index, source in enumerate(message, start=1)
+                )
+
     def _upload_file(self, files: list[str]) -> None:
         logger.debug("Loading count=%s files", len(files))
         paths = [Path(file) for file in files]
@@ -226,24 +255,30 @@ class PrivateGptUi:
             gr.Markdown(
                 f"""<h1><center>{logo_svg} Я, Макар - текстовый ассистент на основе GPT</center></h1>"""
             )
+            response: gr.State = gr.State(None)
+
+            with gr.Accordion("Контекст", open=False):
+                with gr.Column(variant="compact"):
+                    content = gr.Markdown(
+                        value="Появятся после задавания вопросов",
+                        label="Извлеченные фрагменты",
+                        show_label=True
+                    )
 
             with gr.Row():
-                with gr.Column(scale=3, variant="compact"):
+                with gr.Column(scale=4, variant="compact"):
                     mode = gr.Radio(
                         MODES,
-                        label="Mode",
-                        value="Query Docs",
+                        label="Коллекции",
+                        value="DB",
                     )
-                    upload_button = gr.components.UploadButton(
-                        "Upload File(s)",
-                        type="filepath",
-                        file_count="multiple",
-                        size="sm",
+                    upload_button = gr.Files(
+                        file_count="multiple"
                     )
                     ingested_dataset = gr.List(
                         self._list_ingested_files,
-                        headers=["File name"],
-                        label="Ingested Files",
+                        headers=["Название файлов"],
+                        label="Файлы из базы",
                         interactive=False,
                         render=False,  # Rendered under the button
                     )
@@ -259,7 +294,7 @@ class PrivateGptUi:
                     ingested_dataset.render()
                     system_prompt_input = gr.Textbox(
                         placeholder=self._system_prompt,
-                        label="System Prompt",
+                        label="Системный промпт",
                         lines=2,
                         interactive=True,
                         render=False,
@@ -274,26 +309,114 @@ class PrivateGptUi:
                         inputs=system_prompt_input,
                     )
 
-                with gr.Column(scale=7):
-                    gr.ChatInterface(
-                        self._chat,
-                        chatbot=gr.Chatbot(
-                            label=f"LLM: {settings().llm.mode}",
-                            show_copy_button=True,
-                            render=False,
-                            avatar_images=(
-                                AVATAR_USER,
-                                AVATAR_BOT,
-                            ),
-                        ),
-                        additional_inputs=[mode, upload_button, system_prompt_input],
-                        analytics_enabled=True,
-                        submit_btn="📤 Отправить",
-                        stop_btn="⛔ Остановить",
-                        retry_btn="🔄 Повторить",
-                        undo_btn="↩️ Назад",
-                        clear_btn="🗑️  Очистить"
+                # with gr.Column(scale=7):
+                #     gr.ChatInterface(
+                #         self._chat,
+                #         chatbot=gr.Chatbot(
+                #             label="Диалог",
+                #             show_copy_button=True,
+                #             render=False,
+                #             avatar_images=(
+                #                 AVATAR_USER,
+                #                 AVATAR_BOT,
+                #             ),
+                #         ),
+                #         analytics_enabled=True,
+                #         submit_btn="📤 Отправить",
+                #         stop_btn="⛔ Остановить",
+                #         retry_btn="🔄 Повторить",
+                #         undo_btn="↩️ Назад",
+                #         clear_btn="🗑️  Очистить",
+                #         additional_inputs=[mode, upload_button, system_prompt_input,
+                #                            gr.Button(value="📖 Показать контекст")],
+                #     )
+
+                with gr.Column(scale=10):
+                    chatbot = gr.Chatbot(
+                        label="Диалог",
+                        height=500,
+                        show_copy_button=True,
+                        show_share_button=True,
+                        avatar_images=(
+                            AVATAR_USER,
+                            AVATAR_BOT
+                        )
                     )
+
+            with gr.Row():
+                with gr.Column(scale=20):
+                    msg = gr.Textbox(
+                        label="Отправить сообщение",
+                        show_label=False,
+                        placeholder="👉 Напишите запрос",
+                        container=False
+                    )
+                with gr.Column(scale=3, min_width=100):
+                    submit = gr.Button("📤 Отправить", variant="primary")
+
+            with gr.Row(elem_id="buttons"):
+                gr.Button(value="👍 Понравилось")
+                gr.Button(value="👎 Не понравилось")
+                stop = gr.Button(value="⛔ Остановить")
+                regenerate = gr.Button(value="🔄 Повторить")
+                clear = gr.Button(value="🗑️ Очистить")
+
+            # Pressing Enter
+            submit_event = msg.submit(
+                fn=self._get_context,
+                inputs=[msg, chatbot, mode],
+                outputs=[response, content],
+                queue=True,
+            ).success(
+                fn=self._chat,
+                inputs=[response, mode],
+                outputs=chatbot,
+                queue=True,
+            )
+
+            # Pressing the button
+            submit_click_event = submit.click(
+                fn=self._get_context,
+                inputs=[msg, chatbot, mode],
+                outputs=[response, content],
+                queue=True,
+            ).success(
+                fn=self._chat,
+                inputs=[response, mode],
+                outputs=chatbot,
+                queue=True,
+            )
+
+            # Stop generation
+            stop.click(
+                fn=None,
+                inputs=None,
+                outputs=None,
+                cancels=[submit_event, submit_click_event],
+                queue=False,
+            )
+
+            # Regenerate
+            regenerate.click(
+                fn=self.regenerate_response,
+                inputs=[chatbot],
+                outputs=[msg, chatbot],
+                queue=False,
+            ).success(
+                fn=self._get_context,
+                inputs=[msg, chatbot, mode],
+                outputs=[response, content],
+                queue=True,
+            ).success(
+                fn=self._chat,
+                inputs=[response, mode],
+                outputs=chatbot,
+                queue=True,
+            )
+
+            # Clear history
+            clear.click(lambda: None, None, chatbot, queue=False)
+
         return blocks
 
     def get_ui_blocks(self) -> gr.Blocks:

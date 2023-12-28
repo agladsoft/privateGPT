@@ -1,4 +1,5 @@
 import logging
+from typing import Tuple, Union
 from dataclasses import dataclass
 
 from injector import inject, singleton
@@ -124,14 +125,13 @@ class ChatService:
         messages: list[ChatMessage],
         use_context: bool = False,
         context_filter: ContextFilter | None = None,
-    ) -> CompletionGen:
+    ) -> Union[Tuple[CompletionGen, str], CompletionGen]:
         chat_engine_input = ChatEngineInput.from_messages(messages)
         last_message = (
             chat_engine_input.last_message.content
             if chat_engine_input.last_message
             else None
         )
-        logger.info(f"Last message is {last_message}")
         system_prompt = (
             chat_engine_input.system_message.content
             if chat_engine_input.system_message
@@ -146,18 +146,16 @@ class ChatService:
             use_context=use_context,
             context_filter=context_filter,
         )
-        logger.info(f"System prompt is {system_prompt}")
-        logger.info(f"Use context is {use_context}")
-        logger.info(f"Context filter is {context_filter}")
         streaming_response = chat_engine.stream_chat(
             message=last_message if last_message is not None else "",
             chat_history=chat_history,
         )
+        content = streaming_response.sources[0].content
         sources = [Chunk.from_node(node) for node in streaming_response.source_nodes]
         completion_gen = CompletionGen(
             response=streaming_response.response_gen, sources=sources
         )
-        return completion_gen
+        return (completion_gen, content) if use_context else completion_gen
 
     def chat(
         self,
