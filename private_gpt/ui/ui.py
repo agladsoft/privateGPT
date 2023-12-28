@@ -24,7 +24,8 @@ logger = logging.getLogger(__name__)
 
 THIS_DIRECTORY_RELATIVE = Path(__file__).parent.relative_to(PROJECT_ROOT_PATH)
 # Should be "private_gpt/ui/avatar-bot.ico"
-AVATAR_BOT = THIS_DIRECTORY_RELATIVE / "avatar-bot.ico"
+AVATAR_USER = THIS_DIRECTORY_RELATIVE / "icons8-человек-96.png"
+AVATAR_BOT = THIS_DIRECTORY_RELATIVE / "icons8-bot-96.png"
 
 UI_TAB_TITLE = "RusconGPT"
 
@@ -281,7 +282,7 @@ class PrivateGptUi:
                             show_copy_button=True,
                             render=False,
                             avatar_images=(
-                                None,
+                                AVATAR_USER,
                                 AVATAR_BOT,
                             ),
                         ),
