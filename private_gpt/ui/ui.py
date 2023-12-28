@@ -126,14 +126,14 @@ class PrivateGptUi:
                     messages=all_messages,
                     use_context=True,
                 )
-                return query_stream, content
+                return "", query_stream, content
 
             case "LLM":
                 llm_stream = self._chat_service.stream_chat(
                     messages=all_messages,
                     use_context=False,
                 )
-                return llm_stream, "Появятся после задавания вопросов"
+                return "", llm_stream, "Появятся после задавания вопросов"
 
             case "Search in DB":
                 response = self._chunks_service.retrieve_relevant(
@@ -141,7 +141,7 @@ class PrivateGptUi:
                 )
 
                 sources = Source.curate_sources(response)
-                return sources, "Появятся после задавания вопросов"
+                return "", sources, "Появятся после задавания вопросов"
 
     # On initialization and on mode change, this function set the system prompt
     # to the default prompt based on the mode (and user settings).
@@ -338,7 +338,7 @@ class PrivateGptUi:
             submit_event = msg.submit(
                 fn=self._get_context,
                 inputs=[msg, chatbot, mode],
-                outputs=[response, content],
+                outputs=[msg, response, content],
                 queue=True,
             ).success(
                 fn=self._chat,
@@ -351,7 +351,7 @@ class PrivateGptUi:
             submit_click_event = submit.click(
                 fn=self._get_context,
                 inputs=[msg, chatbot, mode],
-                outputs=[response, content],
+                outputs=[msg, response, content],
                 queue=True,
             ).success(
                 fn=self._chat,
@@ -378,7 +378,7 @@ class PrivateGptUi:
             ).success(
                 fn=self._get_context,
                 inputs=[msg, chatbot, mode],
-                outputs=[response, content],
+                outputs=[msg, response, content],
                 queue=True,
             ).success(
                 fn=self._chat,
