@@ -127,15 +127,13 @@ class PrivateGptUi:
                     use_context=True,
                 )
                 return query_stream, content
-                # logger.info(content)
-                # yield from yield_deltas(query_stream)
+
             case "LLM":
                 llm_stream = self._chat_service.stream_chat(
                     messages=all_messages,
                     use_context=False,
                 )
                 return llm_stream, "Появятся после задавания вопросов"
-                # yield from yield_deltas(llm_stream)
 
             case "Search in DB":
                 response = self._chunks_service.retrieve_relevant(
@@ -144,12 +142,6 @@ class PrivateGptUi:
 
                 sources = Source.curate_sources(response)
                 return sources, "Появятся после задавания вопросов"
-                # yield "\n\n\n".join(
-                #     f"{index}. **{source.file} "
-                #     f"(page {source.page})**\n "
-                #     f"{source.text}"
-                #     for index, source in enumerate(sources, start=1)
-                # )
 
     # On initialization and on mode change, this function set the system prompt
     # to the default prompt based on the mode (and user settings).
@@ -204,17 +196,19 @@ class PrivateGptUi:
         return "", history
 
     @staticmethod
-    def _chat(message, mode):
+    def _chat(msg, gen_message, mode):
 
         def yield_deltas(completion_gen: CompletionGen) -> Iterable[str]:
             full_response: str = ""
+            history = [[msg, None]]
             stream = completion_gen.response
             for delta in stream:
                 if isinstance(delta, str):
                     full_response += str(delta)
                 elif isinstance(delta, ChatResponse):
                     full_response += delta.delta or ""
-                yield full_response
+                history[-1][1] = full_response
+                yield history
 
             if completion_gen.sources:
                 full_response += SOURCES_SEPARATOR
@@ -224,19 +218,20 @@ class PrivateGptUi:
                     for index, source in enumerate(cur_sources, start=1)
                 )
                 full_response += sources_text
-            yield full_response
+            history[-1][1] = full_response
+            yield history
 
         match mode:
             case "DB":
-                yield from yield_deltas(message)
+                yield from yield_deltas(gen_message)
             case "LLM":
-                yield from yield_deltas(message)
+                yield from yield_deltas(gen_message)
             case "Search in DB":
                 yield "\n\n\n".join(
                     f"{index}. **{source.file} "
                     f"(page {source.page})**\n "
                     f"{source.text}"
-                    for index, source in enumerate(message, start=1)
+                    for index, source in enumerate(gen_message, start=1)
                 )
 
     def _upload_file(self, files: list[str]) -> None:
@@ -309,28 +304,6 @@ class PrivateGptUi:
                         inputs=system_prompt_input,
                     )
 
-                # with gr.Column(scale=7):
-                #     gr.ChatInterface(
-                #         self._chat,
-                #         chatbot=gr.Chatbot(
-                #             label="Диалог",
-                #             show_copy_button=True,
-                #             render=False,
-                #             avatar_images=(
-                #                 AVATAR_USER,
-                #                 AVATAR_BOT,
-                #             ),
-                #         ),
-                #         analytics_enabled=True,
-                #         submit_btn="📤 Отправить",
-                #         stop_btn="⛔ Остановить",
-                #         retry_btn="🔄 Повторить",
-                #         undo_btn="↩️ Назад",
-                #         clear_btn="🗑️  Очистить",
-                #         additional_inputs=[mode, upload_button, system_prompt_input,
-                #                            gr.Button(value="📖 Показать контекст")],
-                #     )
-
                 with gr.Column(scale=10):
                     chatbot = gr.Chatbot(
                         label="Диалог",
@@ -369,7 +342,7 @@ class PrivateGptUi:
                 queue=True,
             ).success(
                 fn=self._chat,
-                inputs=[response, mode],
+                inputs=[msg, response, mode],
                 outputs=chatbot,
                 queue=True,
             )
@@ -382,7 +355,7 @@ class PrivateGptUi:
                 queue=True,
             ).success(
                 fn=self._chat,
-                inputs=[response, mode],
+                inputs=[msg, response, mode],
                 outputs=chatbot,
                 queue=True,
             )
@@ -409,7 +382,7 @@ class PrivateGptUi:
                 queue=True,
             ).success(
                 fn=self._chat,
-                inputs=[response, mode],
+                inputs=[msg, response, mode],
                 outputs=chatbot,
                 queue=True,
             )

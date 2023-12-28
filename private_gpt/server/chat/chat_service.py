@@ -106,10 +106,17 @@ class ChatService:
             vector_index_retriever = self.vector_store_component.get_retriever(
                 index=self.index, context_filter=context_filter
             )
+            context_template = (
+                "Контекстная информация приведена ниже."
+                "\n--------------------\n"
+                "{context_str}"
+                "\n--------------------\n"
+            )
             return ContextChatEngine.from_defaults(
                 system_prompt=system_prompt,
                 retriever=vector_index_retriever,
                 service_context=self.service_context,
+                context_template=context_template,
                 node_postprocessors=[
                     MetadataReplacementPostProcessor(target_metadata_key="window"),
                 ],
