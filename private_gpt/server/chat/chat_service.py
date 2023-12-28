@@ -157,7 +157,14 @@ class ChatService:
             message=last_message if last_message is not None else "",
             chat_history=chat_history,
         )
-        content = streaming_response.sources[0].content if use_context else None
+        if use_context:
+            content = ""
+            for node in streaming_response.source_nodes:
+                content += f"Документ - {node.metadata['file_name']}\n\n" \
+                           f"Score: {round(node.score, 2)}, Text: {node.text}\n\n"
+        else:
+            content = None
+        # content = streaming_response.sources[0].content if use_context else None
         sources = [Chunk.from_node(node) for node in streaming_response.source_nodes]
         completion_gen = CompletionGen(
             response=streaming_response.response_gen, sources=sources

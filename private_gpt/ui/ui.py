@@ -265,6 +265,7 @@ class PrivateGptUi:
                         MODES,
                         label="Коллекции",
                         value="DB",
+                        info="Переключение между выбором коллекций. Нужен ли контекст или нет?"
                     )
                     upload_button = gr.Files(
                         file_count="multiple"
