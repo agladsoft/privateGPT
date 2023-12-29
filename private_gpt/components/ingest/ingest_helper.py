@@ -1,7 +1,10 @@
+import os
 import re
 import logging
+import subprocess
 from pathlib import Path
 
+from docx import Document as DocDocument
 from llama_index import Document
 from llama_index.readers import JSONReader, StringIterableReader
 from llama_index.readers.file.base import DEFAULT_FILE_READER_CLS
@@ -45,6 +48,19 @@ class IngestionHelper:
                 "No reader found for extension=%s, using default string reader",
                 extension,
             )
+
+            if extension == ".doc":
+                # Create a Document object
+                subprocess.call(['soffice', '--headless', '--convert-to', 'docx', '--outdir',
+                                 os.path.dirname("/".join(file_data.parts)[1:]),
+                                 "/".join(file_data.parts)[1:]])
+
+                doc = DocDocument("/".join(file_data.parts)[1:].replace(".doc", ".docx"))
+
+                text = ''.join(paragraph.text + '\n' for paragraph in doc.paragraphs)
+                string_reader = StringIterableReader()
+                return string_reader.load_data([text])
+
             # Read as a plain text
             string_reader = StringIterableReader()
             return string_reader.load_data([file_data.read_text()])
