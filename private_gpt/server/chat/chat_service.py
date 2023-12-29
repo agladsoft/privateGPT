@@ -160,7 +160,7 @@ class ChatService:
         if use_context:
             content = ""
             for node in streaming_response.source_nodes:
-                content += f"Документ - {node.metadata['file_name']}\n\n" \
+                content += f"Документ - {node.metadata['file_path']}\n\n" \
                            f"Score: {round(node.score, 2)}, Text: {node.text}\n\n"
         else:
             content = None
