@@ -1,6 +1,9 @@
+import os
 import logging
 from typing import Tuple, Union
 from dataclasses import dataclass
+
+from private_gpt.constants import PROJECT_ROOT_PATH
 
 from injector import inject, singleton
 from llama_index import ServiceContext, StorageContext, VectorStoreIndex
@@ -23,6 +26,11 @@ from private_gpt.open_ai.extensions.context_filter import ContextFilter
 from private_gpt.server.chunks.chunks_service import Chunk
 
 logger = logging.getLogger(__name__)
+
+FILES_DIR = os.path.join(PROJECT_ROOT_PATH, "upload_files")
+os.makedirs(FILES_DIR, exist_ok=True)
+os.chmod(FILES_DIR, 0o0777)
+os.environ['GRADIO_TEMP_DIR'] = FILES_DIR
 
 
 class Completion(BaseModel):
@@ -160,7 +168,9 @@ class ChatService:
         if use_context:
             content = ""
             for node in streaming_response.source_nodes:
-                content += f"Документ - {node.metadata['file_name']}\n\n" \
+                url = f"""<a href="file/{FILES_DIR}/{node.metadata['file_name']}" target="_blank" 
+                                rel="noopener noreferrer">{node.metadata['file_name']}</a>"""
+                content += f"Документ - {url}\n\n" \
                            f"Score: {round(node.score, 2)}, Text: {node.text}\n\n"
         else:
             content = None

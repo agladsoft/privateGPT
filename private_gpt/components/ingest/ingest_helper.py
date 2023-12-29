@@ -31,7 +31,6 @@ class IngestionHelper:
         documents = IngestionHelper._load_file_to_documents(file_name, file_data)
         for document in documents:
             document.metadata["file_name"] = file_name
-            document.metadata["file_path"] = file_data
             document.text = re.sub(r'(\s{2,}|\n{2,})', lambda match: match.group()[0]*2, document.text)
         IngestionHelper._exclude_metadata(documents)
         return documents
