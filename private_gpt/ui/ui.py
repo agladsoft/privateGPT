@@ -238,10 +238,11 @@ class PrivateGptUi:
                 )
                 yield history
 
-    def _upload_file(self, files: list[str]) -> None:
+    def _upload_file(self, files: list[str], ingested_dataset):
         logger.debug("Loading count=%s files", len(files))
         paths = [Path(file) for file in files]
         self._ingest_service.bulk_ingest([(str(path.name), path) for path in paths])
+        return "Файлы загружены", ingested_dataset
 
     def _build_ui_blocks(self) -> gr.Blocks:
         logger.debug("Creating the UI blocks")
@@ -277,6 +278,7 @@ class PrivateGptUi:
                         upload_button = gr.Files(
                             file_count="multiple"
                         )
+                        file_warning = gr.Markdown("Фрагменты ещё не загружены!")
                         system_prompt_input = gr.Textbox(
                             placeholder=self._system_prompt,
                             label="Системный промпт",
@@ -349,8 +351,8 @@ class PrivateGptUi:
 
             upload_button.upload(
                 self._upload_file,
-                inputs=upload_button,
-                outputs=ingested_dataset,
+                inputs=[upload_button, ingested_dataset],
+                outputs=[file_warning, ingested_dataset],
             )
 
             # Delete documents from db
