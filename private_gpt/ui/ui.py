@@ -186,6 +186,10 @@ class PrivateGptUi:
             files.add(file_name)
         return [[row] for row in files]
 
+    def delete_doc(self, documents: str):
+        logger.info(f"Documents is {documents}")
+        return self._list_ingested_files()
+
     @staticmethod
     def regenerate_response(history):
         """
@@ -249,90 +253,111 @@ class PrivateGptUi:
             gr.Markdown(
                 f"""<h1><center>{logo_svg} Я, Макар - текстовый ассистент на основе GPT</center></h1>"""
             )
-            response: gr.State = gr.State(None)
 
-            with gr.Accordion("Контекст", open=False):
-                with gr.Column(variant="compact"):
-                    content = gr.Markdown(
-                        value="Появятся после задавания вопросов",
-                        label="Извлеченные фрагменты",
-                        show_label=True
-                    )
+            with gr.Tab("Чат"):
+                response: gr.State = gr.State(None)
 
-            with gr.Row():
-                with gr.Column(scale=5, variant="compact"):
-                    mode = gr.Radio(
-                        MODES,
-                        label="Коллекции",
-                        value="DB",
-                        info="Переключение между выбором коллекций. Нужен ли контекст или нет?"
-                    )
-                    upload_button = gr.Files(
-                        file_count="multiple"
-                    )
-                    ingested_dataset = gr.List(
-                        self._list_ingested_files,
-                        headers=["Название файлов"],
-                        label="Файлы из базы",
-                        interactive=False,
-                        render=False,  # Rendered under the button
-                    )
-                    upload_button.upload(
-                        self._upload_file,
-                        inputs=upload_button,
-                        outputs=ingested_dataset,
-                    )
-                    ingested_dataset.change(
-                        self._list_ingested_files,
-                        outputs=ingested_dataset,
-                    )
-                    ingested_dataset.render()
-                    system_prompt_input = gr.Textbox(
-                        placeholder=self._system_prompt,
-                        label="Системный промпт",
-                        lines=2,
-                        interactive=True,
-                        render=False,
-                    )
-                    # When mode changes, set default system prompt
-                    mode.change(
-                        self._set_current_mode, inputs=mode, outputs=system_prompt_input
-                    )
-                    # On blur, set system prompt to use in queries
-                    system_prompt_input.blur(
-                        self._set_system_prompt,
-                        inputs=system_prompt_input,
-                    )
-
-                with gr.Column(scale=10):
-                    chatbot = gr.Chatbot(
-                        label="Диалог",
-                        height=500,
-                        show_copy_button=True,
-                        show_share_button=True,
-                        avatar_images=(
-                            AVATAR_USER,
-                            AVATAR_BOT
+                with gr.Accordion("Контекст", open=False):
+                    with gr.Column(variant="compact"):
+                        content = gr.Markdown(
+                            value="Появятся после задавания вопросов",
+                            label="Извлеченные фрагменты",
+                            show_label=True
                         )
-                    )
 
-            with gr.Row():
-                with gr.Column(scale=20):
-                    msg = gr.Textbox(
-                        label="Отправить сообщение",
-                        show_label=False,
-                        placeholder="👉 Напишите запрос",
-                        container=False
-                    )
-                with gr.Column(scale=3, min_width=100):
-                    submit = gr.Button("📤 Отправить", variant="primary")
+                with gr.Row():
+                    with gr.Column(scale=5, variant="compact"):
+                        mode = gr.Radio(
+                            MODES,
+                            label="Коллекции",
+                            value="DB",
+                            info="Переключение между выбором коллекций. Нужен ли контекст или нет?"
+                        )
+                        upload_button = gr.Files(
+                            file_count="multiple"
+                        )
+                        system_prompt_input = gr.Textbox(
+                            placeholder=self._system_prompt,
+                            label="Системный промпт",
+                            lines=2,
+                            interactive=True,
+                            render=False,
+                        )
+                        # When mode changes, set default system prompt
+                        mode.change(
+                            self._set_current_mode, inputs=mode, outputs=system_prompt_input
+                        )
+                        # On blur, set system prompt to use in queries
+                        system_prompt_input.blur(
+                            self._set_system_prompt,
+                            inputs=system_prompt_input,
+                        )
 
-            with gr.Row(elem_id="buttons"):
-                gr.Button(value="👍 Понравилось")
-                gr.Button(value="👎 Не понравилось")
-                stop = gr.Button(value="⛔ Остановить")
-                regenerate = gr.Button(value="🔄 Повторить")
-                clear = gr.Button(value="🗑️ Очистить")
+                    with gr.Column(scale=10):
+                        chatbot = gr.Chatbot(
+                            label="Диалог",
+                            height=500,
+                            show_copy_button=True,
+                            show_share_button=True,
+                            avatar_images=(
+                                AVATAR_USER,
+                                AVATAR_BOT
+                            )
+                        )
+
+                with gr.Row():
+                    with gr.Column(scale=20):
+                        msg = gr.Textbox(
+                            label="Отправить сообщение",
+                            show_label=False,
+                            placeholder="👉 Напишите запрос",
+                            container=False
+                        )
+                    with gr.Column(scale=3, min_width=100):
+                        submit = gr.Button("📤 Отправить", variant="primary")
+
+                with gr.Row(elem_id="buttons"):
+                    gr.Button(value="👍 Понравилось")
+                    gr.Button(value="👎 Не понравилось")
+                    stop = gr.Button(value="⛔ Остановить")
+                    regenerate = gr.Button(value="🔄 Повторить")
+                    clear = gr.Button(value="🗑️ Очистить")
+
+            with gr.Tab("Документы"):
+                with gr.Row():
+                    with gr.Column(scale=3):
+                        find_doc = gr.Textbox(
+                            label="Отправить сообщение",
+                            show_label=False,
+                            placeholder="👉 Напишите название документа",
+                            container=False
+                        )
+                        delete = gr.Button("🧹 Удалить", variant="primary")
+                    with gr.Column(scale=7):
+                        ingested_dataset = gr.List(
+                            self._list_ingested_files,
+                            headers=["Название файлов"],
+                            interactive=False,
+                            render=False,  # Rendered under the button
+                        )
+                        ingested_dataset.change(
+                            self._list_ingested_files,
+                            outputs=ingested_dataset,
+                        )
+                        ingested_dataset.render()
+
+            upload_button.upload(
+                self._upload_file,
+                inputs=upload_button,
+                outputs=ingested_dataset,
+            )
+
+            # Delete documents from db
+            delete.click(
+                fn=self.delete_doc,
+                inputs=find_doc,
+                outputs=[find_doc, ingested_dataset]
+            )
 
             # Pressing Enter
             submit_event = msg.submit(
