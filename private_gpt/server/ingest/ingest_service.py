@@ -8,7 +8,7 @@ from llama_index import (
     ServiceContext,
     StorageContext,
 )
-from llama_index.node_parser import SentenceSplitter, SentenceWindowNodeParser
+from llama_index.node_parser import SentenceWindowNodeParser
 
 from private_gpt.components.embedding.embedding_component import EmbeddingComponent
 from private_gpt.components.ingest.ingest_component import get_ingestion_component
@@ -31,8 +31,7 @@ class IngestService:
         llm_component: LLMComponent,
         vector_store_component: VectorStoreComponent,
         embedding_component: EmbeddingComponent,
-        node_store_component: NodeStoreComponent,
-        text_splitter: SentenceSplitter = None
+        node_store_component: NodeStoreComponent
     ) -> None:
         self.llm_service = llm_component
         self.storage_context = StorageContext.from_defaults(
@@ -40,14 +39,15 @@ class IngestService:
             docstore=node_store_component.doc_store,
             index_store=node_store_component.index_store,
         )
-        node_parser = SentenceWindowNodeParser.from_defaults()
+        # node_parser = SentenceWindowNodeParser.from_defaults()
         self.ingest_service_context = ServiceContext.from_defaults(
             llm=self.llm_service.llm,
             embed_model=embedding_component.embedding_model,
-            node_parser=node_parser,
+            # node_parser=node_parser,
+            chunk_size=512,
             # Embeddings done early in the pipeline of node transformations, right
             # after the node parsing
-            transformations=[node_parser, embedding_component.embedding_model],
+            # transformations=[node_parser, embedding_component.embedding_model],
         )
 
         self.ingest_component = get_ingestion_component(
