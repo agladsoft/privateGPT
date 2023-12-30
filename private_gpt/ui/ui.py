@@ -4,6 +4,7 @@ import logging
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
+import pandas as pd
 
 import gradio as gr  # type: ignore
 from fastapi import FastAPI
@@ -188,7 +189,7 @@ class PrivateGptUi:
 
     def delete_doc(self, documents: str):
         logger.info(f"Documents is {documents}")
-        return self._list_ingested_files()
+        return "", self._list_ingested_files()
 
     @staticmethod
     def regenerate_response(history):
