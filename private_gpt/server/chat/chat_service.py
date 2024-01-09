@@ -104,15 +104,69 @@ class ChatService:
             show_progress=True,
         )
 
+    def stream_chat(
+        self,
+        limit: int,
+        messages: list[ChatMessage],
+        use_context: bool = False,
+        context_filter: ContextFilter | None = None
+    ) -> Union[Tuple[CompletionGen, str], CompletionGen]:
+        chat_engine_input = ChatEngineInput.from_messages(messages)
+        last_message = (
+            chat_engine_input.last_message.content
+            if chat_engine_input.last_message
+            else None
+        )
+        system_prompt = (
+            chat_engine_input.system_message.content
+            if chat_engine_input.system_message
+            else None
+        )
+        chat_history = (
+            chat_engine_input.chat_history if chat_engine_input.chat_history else None
+        )
+
+        chat_engine = self._chat_engine(
+            limit=limit,
+            system_prompt=system_prompt,
+            use_context=use_context,
+            context_filter=context_filter,
+        )
+        streaming_response = chat_engine.stream_chat(
+            message=last_message if last_message is not None else "",
+            chat_history=chat_history,
+        )
+        if use_context:
+            content = ""
+            filenames = []
+            for node in streaming_response.source_nodes:
+                if node.metadata['file_name'] in filenames:
+                    content += f"Score: {round(node.score, 2)}, Text: {node.text}\n\n\n"
+                else:
+                    filenames.append(node.metadata['file_name'])
+                    url = f"""<a href="file/{FILES_DIR}/{node.metadata['file_name']}" target="_blank" 
+                        rel="noopener noreferrer">{node.metadata['file_name']}</a>"""
+                    content += f"Документ - {url}\n\n" \
+                               f"Score: {round(node.score, 2)}, Text: {node.text}\n\n\n"
+        else:
+            content = None
+        # content = streaming_response.sources[0].content if use_context else None
+        sources = [Chunk.from_node(node) for node in streaming_response.source_nodes]
+        completion_gen = CompletionGen(
+            response=streaming_response.response_gen, sources=sources
+        )
+        return (completion_gen, content) if use_context else completion_gen
+
     def _chat_engine(
         self,
+        limit: int,
         system_prompt: str | None = None,
         use_context: bool = False,
-        context_filter: ContextFilter | None = None,
+        context_filter: ContextFilter | None = None
     ) -> BaseChatEngine:
         if use_context:
             vector_index_retriever = self.vector_store_component.get_retriever(
-                index=self.index, context_filter=context_filter
+                index=self.index, context_filter=context_filter, similarity_top_k=limit
             )
             context_template = (
                 "Контекстная информация приведена ниже."
@@ -134,52 +188,6 @@ class ChatService:
                 system_prompt=system_prompt,
                 service_context=self.service_context,
             )
-
-    def stream_chat(
-        self,
-        messages: list[ChatMessage],
-        use_context: bool = False,
-        context_filter: ContextFilter | None = None,
-    ) -> Union[Tuple[CompletionGen, str], CompletionGen]:
-        chat_engine_input = ChatEngineInput.from_messages(messages)
-        last_message = (
-            chat_engine_input.last_message.content
-            if chat_engine_input.last_message
-            else None
-        )
-        system_prompt = (
-            chat_engine_input.system_message.content
-            if chat_engine_input.system_message
-            else None
-        )
-        chat_history = (
-            chat_engine_input.chat_history if chat_engine_input.chat_history else None
-        )
-
-        chat_engine = self._chat_engine(
-            system_prompt=system_prompt,
-            use_context=use_context,
-            context_filter=context_filter,
-        )
-        streaming_response = chat_engine.stream_chat(
-            message=last_message if last_message is not None else "",
-            chat_history=chat_history,
-        )
-        if use_context:
-            content = ""
-            for node in streaming_response.source_nodes:
-                url = f"""<a href="file/{FILES_DIR}/{node.metadata['file_name']}" target="_blank" 
-                                rel="noopener noreferrer">{node.metadata['file_name']}</a>"""
-                content += f"Документ - {url}\n\n" \
-                           f"Score: {round(node.score, 2)}, Text: {node.text}\n\n"
-        else:
-            content = None
-        # content = streaming_response.sources[0].content if use_context else None
-        sources = [Chunk.from_node(node) for node in streaming_response.source_nodes]
-        completion_gen = CompletionGen(
-            response=streaming_response.response_gen, sources=sources
-        )
-        return (completion_gen, content) if use_context else completion_gen
 
     def chat(
         self,

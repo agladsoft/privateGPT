@@ -96,7 +96,7 @@ class PrivateGptUi:
         self.mode = MODES[0]
         self._system_prompt = self._get_default_system_prompt(self.mode)
 
-    def _get_context(self, message: str, history: list[list[str]], mode: str, *_: Any) -> Any:
+    def _get_context(self, message: str, history: list[list[str]], mode: str, limit, *_: Any) -> Any:
 
         def build_history() -> list[ChatMessage]:
             history_messages: list[ChatMessage] = list(
@@ -106,7 +106,7 @@ class PrivateGptUi:
                             ChatMessage(content=interaction[0], role=MessageRole.USER),
                             ChatMessage(
                                 # Remove from history content the Sources information
-                                content=interaction[1].split(SOURCES_SEPARATOR)[0],
+                                content=interaction[1].split(SOURCES_SEPARATOR)[0] if interaction[1] else None,
                                 role=MessageRole.ASSISTANT,
                             ),
                         ]
@@ -135,6 +135,7 @@ class PrivateGptUi:
                 query_stream, content = self._chat_service.stream_chat(
                     messages=all_messages,
                     use_context=True,
+                    limit=limit
                 )
                 return "", history + [[message, None]], query_stream, content
 
@@ -147,7 +148,7 @@ class PrivateGptUi:
 
             case "Search in DB":
                 response = self._chunks_service.retrieve_relevant(
-                    text=message, limit=4, prev_next_chunks=0
+                    text=message, limit=limit, prev_next_chunks=0
                 )
 
                 sources = Source.curate_sources(response)
@@ -228,7 +229,7 @@ class PrivateGptUi:
                     f"{index}. {source.file} (page {source.page})"
                     for index, source in enumerate(cur_sources, start=1)
                 )
-                full_response += sources_text
+                history[-1][1] += sources_text
             yield history
 
         match mode:
@@ -265,6 +266,34 @@ class PrivateGptUi:
 
             with gr.Tab("Чат"):
                 response: gr.State = gr.State(None)
+
+                with gr.Accordion("Параметры", open=False):
+                    with gr.Tab(label="Параметры извлечения фрагментов из текста"):
+                        limit = gr.Slider(
+                            minimum=1,
+                            maximum=5,
+                            value=4,
+                            step=1,
+                            interactive=True,
+                            label="Кол-во фрагментов для контекста"
+                        )
+                    with gr.Tab(label="Параметры нарезки"):
+                        chunk_size = gr.Slider(
+                            minimum=50,
+                            maximum=1000,
+                            value=512,
+                            step=50,
+                            interactive=True,
+                            label="Размер фрагментов",
+                        )
+                        chunk_overlap = gr.Slider(
+                            minimum=0,
+                            maximum=500,
+                            value=50,
+                            step=10,
+                            interactive=True,
+                            label="Пересечение"
+                        )
 
                 with gr.Accordion("Контекст", open=False):
                     with gr.Column(variant="compact"):
@@ -372,7 +401,7 @@ class PrivateGptUi:
             # Pressing Enter
             submit_event = msg.submit(
                 fn=self._get_context,
-                inputs=[msg, chatbot, mode],
+                inputs=[msg, chatbot, mode, limit],
                 outputs=[msg, chatbot, response, content],
                 queue=True,
             ).success(
@@ -385,7 +414,7 @@ class PrivateGptUi:
             # Pressing the button
             submit_click_event = submit.click(
                 fn=self._get_context,
-                inputs=[msg, chatbot, mode],
+                inputs=[msg, chatbot, mode, limit],
                 outputs=[msg, chatbot, response, content],
                 queue=True,
             ).success(
@@ -412,7 +441,7 @@ class PrivateGptUi:
                 queue=False,
             ).success(
                 fn=self._get_context,
-                inputs=[msg, chatbot, mode],
+                inputs=[msg, chatbot, mode, limit],
                 outputs=[msg, chatbot, response, content],
                 queue=True,
             ).success(
