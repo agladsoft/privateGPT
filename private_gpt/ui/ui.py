@@ -222,7 +222,7 @@ class PrivateGptUi:
                 full_response += SOURCES_SEPARATOR
                 cur_sources = Source.curate_sources(completion_gen.sources)
                 sources_text = "\n\n\n".join(
-                    f"{index}. {source.file} (page {source.page})"
+                    f"\n{index}. {source.file} (page {source.page})"
                     for index, source in enumerate(cur_sources, start=1)
                 )
                 history[-1][1] += sources_text
