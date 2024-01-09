@@ -190,13 +190,9 @@ class PrivateGptUi:
     def delete_doc(self, documents: str):
         logger.info(f"Documents is {documents}")
         list_documents: list[str] = documents.strip().split("\n")
-        try:
-            doc_store = self._chunks_service.storage_context.docstore
-            for node in doc_store.docs.values():
-                if node.ref_doc_id is not None and node.metadata["file_name"] in list_documents:
-                    doc_store.delete_document(doc_id=node.id_)
-        except ValueError as ex:
-            logger.error(ex)
+        for node in self._ingest_service.list_ingested():
+            if node.doc_id is not None and node.doc_metadata["file_name"] in list_documents:
+                self._ingest_service.delete(node.doc_id)
         return "", self._list_ingested_files()
 
     @staticmethod
