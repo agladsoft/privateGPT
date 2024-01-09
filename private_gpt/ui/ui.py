@@ -40,6 +40,16 @@ BLOCK_CSS = """
     min-width: min(120px,100%);
 }
 
+/* Применяем стили для td */
+tr focus {
+  user-select: all; /* Разрешаем выделение текста */
+}
+
+/* Применяем стили для ячейки span внутри td */
+tr span {
+  user-select: all; /* Разрешаем выделение текста */
+}
+
 """
 
 
@@ -179,6 +189,14 @@ class PrivateGptUi:
 
     def delete_doc(self, documents: str):
         logger.info(f"Documents is {documents}")
+        list_documents: list[str] = documents.strip().split("\n")
+        try:
+            doc_store = self._chunks_service.storage_context.docstore
+            for node in doc_store.docs.values():
+                if node.ref_doc_id is not None and node.metadata["file_name"] in list_documents:
+                    doc_store.delete_document(doc_id=node.id_)
+        except ValueError as ex:
+            logger.error(ex)
         return "", self._list_ingested_files()
 
     @staticmethod
@@ -228,11 +246,11 @@ class PrivateGptUi:
                 )
                 yield history
 
-    def _upload_file(self, files: list[str], ingested_dataset):
+    def _upload_file(self, files: list[str]):
         logger.debug("Loading count=%s files", len(files))
         paths = [Path(file) for file in files]
         self._ingest_service.bulk_ingest([(str(path.name), path) for path in paths])
-        return "Файлы загружены", ingested_dataset
+        return "Файлы загружены", self._list_ingested_files()
 
     def _build_ui_blocks(self) -> gr.Blocks:
         logger.debug("Creating the UI blocks")
@@ -341,7 +359,7 @@ class PrivateGptUi:
 
             upload_button.upload(
                 self._upload_file,
-                inputs=[upload_button, ingested_dataset],
+                inputs=[upload_button],
                 outputs=[file_warning, ingested_dataset],
             )
 
