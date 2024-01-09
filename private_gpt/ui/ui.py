@@ -4,7 +4,6 @@ import logging
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
-import pandas as pd
 
 import gradio as gr  # type: ignore
 from fastapi import FastAPI
