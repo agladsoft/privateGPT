@@ -8,8 +8,6 @@ RUN python3 -m pipx ensurepath
 RUN pipx install poetry
 ENV PATH="/root/.local/bin:$PATH"
 
-RUN poetry --version
-
 # Dependencies to build llama-cpp
 RUN apt update && apt install -y \
   libopenblas-dev\
