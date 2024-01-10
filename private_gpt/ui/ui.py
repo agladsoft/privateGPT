@@ -225,6 +225,8 @@ class PrivateGptUi:
                     f"\n{index}. {source.file} (page {source.page})"
                     for index, source in enumerate(cur_sources, start=1)
                 )
+                if history[-1][1] is None:
+                    history[-1][1] = "Слишком большой контекст, сократите его"
                 history[-1][1] += sources_text
             yield history
 
