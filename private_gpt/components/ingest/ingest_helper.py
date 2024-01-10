@@ -31,10 +31,22 @@ class IngestionHelper:
     def transform_file_into_documents(
         file_name: str, file_data: Path
     ) -> list[Document]:
+        def add_period_after_sentence(text, step=1024):
+            for i in range(0, len(text), step):
+                substring = text[i:i + step]
+                if '.' not in substring and i + step < len(text):
+                    # Find the last space in the substring and add a period after it
+                    last_space = substring.rfind('\n')
+                    if last_space != -1:
+                        text = text[:i + last_space + 1].strip() + '.\n\n' + text[i + last_space + 1:]
+            return text
+
         documents = IngestionHelper._load_file_to_documents(file_name, file_data)
         for document in documents:
             document.metadata["file_name"] = file_name
-            document.text = re.sub(r'(\s{2,}|\n{2,})', lambda match: match.group()[0]*2, document.text)
+            document.text = add_period_after_sentence(
+                re.sub(r'(\s{2,}|\n{2,})', lambda match: match.group()[0]*2, document.text)
+            )
         IngestionHelper._exclude_metadata(documents)
         return documents
 
