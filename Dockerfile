@@ -37,7 +37,6 @@ WORKDIR /home/worker/app
 RUN mkdir local_data
 RUN mkdir models
 
-USER worker
 COPY --from=dependencies /home/worker/app/.venv/ .venv
 COPY private_gpt/ private_gpt
 COPY *.yaml *.md ./
