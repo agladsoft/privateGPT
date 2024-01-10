@@ -1,6 +1,7 @@
 """This file should be imported only and only if you want to run the UI locally."""
 import itertools
 import logging
+import os.path
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -67,7 +68,7 @@ class Source(BaseModel):
         for chunk in sources:
             doc_metadata = chunk.document.doc_metadata
 
-            file_name = doc_metadata.get("file_name", "-") if doc_metadata else "-"
+            file_name = os.path.basename(doc_metadata.get("file_name", "-")) if doc_metadata else "-"
             page_label = doc_metadata.get("page_label", "-") if doc_metadata else "-"
 
             source = Source(file=file_name, page=page_label, text=chunk.text)
@@ -184,14 +185,14 @@ class PrivateGptUi:
             file_name = ingested_document.doc_metadata.get(
                 "file_name", "[FILE NAME MISSING]"
             )
-            files.add(file_name)
+            files.add(os.path.basename(file_name))
         return [[row] for row in files]
 
     def delete_doc(self, documents: str):
         logger.info(f"Documents is {documents}")
         list_documents: list[str] = documents.strip().split("\n")
         for node in self._ingest_service.list_ingested():
-            if node.doc_id is not None and node.doc_metadata["file_name"] in list_documents:
+            if node.doc_id is not None and os.path.basename(node.doc_metadata["file_name"]) in list_documents:
                 self._ingest_service.delete(node.doc_id)
         return "", self._list_ingested_files()
 

@@ -43,7 +43,7 @@ class IngestionHelper:
 
         documents = IngestionHelper._load_file_to_documents(file_name, file_data)
         for document in documents:
-            document.metadata["file_name"] = file_name
+            document.metadata["file_name"] = str(file_data)
             document.text = add_period_after_sentence(
                 re.sub(r'(\s{2,}|\n{2,})', lambda match: match.group()[0]*2, document.text)
             )

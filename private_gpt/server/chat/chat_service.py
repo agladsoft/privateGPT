@@ -138,14 +138,9 @@ class ChatService:
         )
         if use_context:
             content = ""
-            filenames = []
             for node in streaming_response.source_nodes:
-                # if node.metadata['file_name'] in filenames:
-                #     content += f"Score: {round(node.score, 2)}, Text: {node.text}\n\n\n"
-                # else:
-                #     filenames.append(node.metadata['file_name'])
-                url = f"""<a href="file/{FILES_DIR}/{node.metadata['file_name']}" target="_blank" 
-                    rel="noopener noreferrer">{node.metadata['file_name']}</a>"""
+                url = f"""<a href="file/{node.metadata['file_name']}" target="_blank" 
+                    rel="noopener noreferrer">{os.path.basename(node.metadata['file_name'])}</a>"""
                 content += f"Документ - {url}\n\n" \
                            f"Score: {round(node.score, 2)}, Text: {node.text}\n\n\n"
         else:
