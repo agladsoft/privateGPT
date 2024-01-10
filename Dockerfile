@@ -14,7 +14,8 @@ RUN apt update && apt install -y \
   ninja-build\
   build-essential\
   pkg-config\
-  wget
+  wget\
+  virtualenv
 
 # https://python-poetry.org/docs/configuration/#virtualenvsin-project
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
