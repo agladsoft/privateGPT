@@ -97,7 +97,7 @@ class LocalSettings(BaseModel):
         description="Name of the HuggingFace model to use for embeddings"
     )
     prompt_style: Literal["default", "llama2", "tag"] = Field(
-        "llama2",
+        "default",
         description=(
             "The prompt style to use for the chat engine. "
             "If `default` - use the default prompt style from the llama_index. It should look like `role: message`.\n"
