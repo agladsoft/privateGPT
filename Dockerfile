@@ -6,6 +6,7 @@ FROM python:3.11.6-slim-bookworm as base
 RUN pip install pipx
 RUN python3 -m pipx ensurepath
 RUN pipx install poetry
+RUN poetry --version
 ENV PATH="/root/.local/bin:$PATH"
 
 # Dependencies to build llama-cpp
