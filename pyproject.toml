@@ -32,13 +32,9 @@ pytest-asyncio = "^0.21.1"
 types-pyyaml = "^6.0.12.12"
 
 # Dependencies for gradio UI
-[tool.poetry.group.ui]
-optional = true
 [tool.poetry.group.ui.dependencies]
 gradio = "^4.4.1"
 
-[tool.poetry.group.local]
-optional = true
 [tool.poetry.group.local.dependencies]
 llama-cpp-python = "^0.2.11"
 numpy = "1.26.0"
