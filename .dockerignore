@@ -10,3 +10,4 @@ terraform
 tests
 Dockerfile
 Dockerfile.*
+private_gpt/models

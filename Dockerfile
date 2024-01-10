@@ -32,16 +32,14 @@ ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
 EXPOSE 8080
 
-# Prepare a non-root user
-RUN adduser --system worker
 WORKDIR /home/worker/app
 
-RUN mkdir local_data; chown worker local_data
-RUN mkdir models; chown worker models
-COPY --chown=worker --from=dependencies /home/worker/app/.venv/ .venv
-COPY --chown=worker private_gpt/ private_gpt
-COPY --chown=worker docs/ docs
-COPY --chown=worker *.yaml *.md ./
+RUN mkdir local_data
+RUN mkdir models
 
 USER worker
+COPY --from=dependencies /home/worker/app/.venv/ .venv
+COPY private_gpt/ private_gpt
+COPY *.yaml *.md ./
+
 ENTRYPOINT .venv/bin/python -m private_gpt
