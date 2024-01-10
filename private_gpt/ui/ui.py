@@ -202,7 +202,7 @@ class PrivateGptUi:
         :param history:
         :return:
         """
-        return "", history
+        return history[-1][0], history
 
     @staticmethod
     def _chat(history, gen_message, mode):
@@ -422,17 +422,8 @@ class PrivateGptUi:
                 queue=True,
             )
 
-            # Stop generation
-            stop.click(
-                fn=None,
-                inputs=None,
-                outputs=None,
-                cancels=[submit_event, submit_click_event],
-                queue=False,
-            )
-
             # Regenerate
-            regenerate.click(
+            regenerate_click_event = regenerate.click(
                 fn=self.regenerate_response,
                 inputs=[chatbot],
                 outputs=[msg, chatbot],
@@ -447,6 +438,15 @@ class PrivateGptUi:
                 inputs=[chatbot, response, mode],
                 outputs=chatbot,
                 queue=True,
+            )
+
+            # Stop generation
+            stop.click(
+                fn=None,
+                inputs=None,
+                outputs=None,
+                cancels=[submit_event, submit_click_event, regenerate_click_event],
+                queue=False,
             )
 
             # Clear history

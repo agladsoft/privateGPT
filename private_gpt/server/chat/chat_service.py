@@ -106,9 +106,9 @@ class ChatService:
 
     def stream_chat(
         self,
-        limit: int,
         messages: list[ChatMessage],
         use_context: bool = False,
+        limit: int = 2,
         context_filter: ContextFilter | None = None
     ) -> Union[Tuple[CompletionGen, str], CompletionGen]:
         chat_engine_input = ChatEngineInput.from_messages(messages)
