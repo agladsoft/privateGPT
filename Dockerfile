@@ -23,7 +23,8 @@ FROM base as dependencies
 WORKDIR /home/worker/app
 COPY pyproject.toml poetry.lock ./
 
-RUN poetry install
+RUN poetry install --with local
+RUN poetry install --with ui
 
 FROM base as app
 
