@@ -22,11 +22,8 @@ data:
 ui:
   enabled: true
   path: /
-#  default_chat_system_prompt: >
-#    Вы, Макар - полезный, уважительный и честный ассистент.
-#    Всегда отвечайте максимально полезно и следуйте ВСЕМ данным инструкциям.
-#    Не спекулируйте и не выдумывайте информацию.
-#    Ссылайтесь только на контекст.
+  default_chat_system_prompt: >
+    Вы, Макар - полезный, уважительный и честный ассистент.
   default_query_system_prompt: >
     Вы, Макар - полезный, уважительный и честный ассистент. 
     Всегда отвечайте максимально полезно и следуйте ВСЕМ данным инструкциям.
@@ -49,9 +46,6 @@ qdrant:
   path: local_data/private_gpt/qdrant
 
 local:
-#  prompt_style: "default"
-#  llm_hf_repo_id: TheBloke/Mistral-7B-Instruct-v0.1-GGUF
-#  llm_hf_model_file: mistral-7b-instruct-v0.1.Q4_K_M.gguf
   prompt_style: "default"
   llm_hf_repo_id: IlyaGusev/saiga2_7b_gguf
   llm_hf_model_file:  model-q4_K.gguf

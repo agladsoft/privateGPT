@@ -176,6 +176,16 @@ class PrivateGptUi:
         logger.info(f"Setting system prompt to: {system_prompt_input}")
         self._system_prompt = system_prompt_input
 
+    def _set_current_mode(self, mode: str) -> Any:
+        self.mode = mode
+        self._set_system_prompt(self._get_default_system_prompt(mode))
+        # Update placeholder and allow interaction if default system prompt is set
+        if self._system_prompt:
+            return gr.update(placeholder=self._system_prompt, interactive=True)
+        # Update placeholder and disable interaction if no default system prompt is set
+        else:
+            return gr.update(placeholder=self._system_prompt, interactive=False)
+
     def _list_ingested_files(self) -> list[list[str]]:
         files = set()
         for ingested_document in self._ingest_service.list_ingested():
@@ -314,22 +324,6 @@ class PrivateGptUi:
                             file_count="multiple"
                         )
                         file_warning = gr.Markdown("Фрагменты ещё не загружены!")
-                        system_prompt_input = gr.Textbox(
-                            placeholder=self._system_prompt,
-                            label="Системный промпт",
-                            lines=2,
-                            interactive=True,
-                            render=False,
-                        )
-                        mode.change(
-                            fn=lambda c: c,
-                            inputs=[mode]
-                        )
-                        # On blur, set system prompt to use in queries
-                        system_prompt_input.blur(
-                            self._set_system_prompt,
-                            inputs=system_prompt_input,
-                        )
 
                     with gr.Column(scale=10):
                         chatbot = gr.Chatbot(
@@ -342,6 +336,17 @@ class PrivateGptUi:
                                 AVATAR_BOT
                             )
                         )
+                        with gr.Accordion("Системный промпт", open=False):
+                            system_prompt_input = gr.Textbox(
+                                placeholder=self._system_prompt,
+                                label="Системный промпт",
+                                lines=2
+                            )
+                            # On blur, set system prompt to use in queries
+                            system_prompt_input.blur(
+                                self._set_system_prompt,
+                                inputs=system_prompt_input,
+                            )
 
                 with gr.Row():
                     with gr.Column(scale=20):
@@ -383,6 +388,10 @@ class PrivateGptUi:
                             outputs=ingested_dataset,
                         )
                         ingested_dataset.render()
+
+            mode.change(
+                self._set_current_mode, inputs=mode, outputs=system_prompt_input
+            )
 
             upload_button.upload(
                 self._upload_file,
