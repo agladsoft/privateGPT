@@ -23,7 +23,7 @@ FROM base as dependencies
 WORKDIR /home/worker/app
 
 COPY pyproject.toml poetry.lock ./
-RUN CMAKE_ARGS="-DLLAMA_CUBLAS=on" FORCE_CMAKE=1 pip install llama-cpp-python==0.2.24 --force-reinstall --upgrade --no-cache-dir
+RUN export CMAKE_ARGS="-DLLAMA_CUBLAS=on" && export FORCE_CMAKE=1
 
 RUN poetry install --with local
 RUN poetry install --with ui
