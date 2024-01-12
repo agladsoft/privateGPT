@@ -45,4 +45,4 @@ COPY scripts/ scripts
 
 ENV PYTHONPATH="$PYTHONPATH:/private_gpt/"
 
-ENTRYPOINT python -m private_gpt
+ENTRYPOINT .venv/bin/python -m private_gpt
