@@ -43,6 +43,7 @@ COPY private_gpt/ private_gpt
 COPY fern/ fern
 COPY scripts/ scripts
 COPY *.yaml *.md ./
+COPY pyproject.toml poetry.lock ./
 
 RUN poetry run python scripts/setup
 
