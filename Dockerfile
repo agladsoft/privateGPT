@@ -21,15 +21,11 @@ ENV POETRY_VIRTUALENVS_IN_PROJECT=true
 
 FROM base as dependencies
 WORKDIR /home/worker/app
-COPY private_gpt/ private_gpt
-COPY scripts/ scripts
-COPY *.yaml *.md ./
+
 COPY pyproject.toml poetry.lock ./
 
 RUN poetry install --with local
 RUN poetry install --with ui
-
-RUN poetry run python scripts/setup
 
 FROM base as app
 
@@ -47,5 +43,7 @@ COPY private_gpt/ private_gpt
 COPY fern/ fern
 COPY scripts/ scripts
 COPY *.yaml *.md ./
+
+RUN poetry run python scripts/setup
 
 ENTRYPOINT .venv/bin/python -m private_gpt
