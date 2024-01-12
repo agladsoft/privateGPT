@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from private_gpt.settings.settings_loader import load_active_settings
+from settings_loader import load_active_settings
 
 
 class CorsSettings(BaseModel):
