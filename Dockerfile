@@ -41,7 +41,7 @@ COPY --from=dependencies /home/worker/app/.venv/ .venv
 COPY private_gpt/ private_gpt
 COPY scripts/ scripts
 COPY *.yaml *.md ./
-RUN ls && cd scripts && ls
+RUN cd scripts && ls
 RUN .venv/bin/python -m scripts/setup
 
 ENTRYPOINT .venv/bin/python -m private_gpt
