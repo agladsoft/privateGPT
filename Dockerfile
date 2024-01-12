@@ -39,6 +39,7 @@ RUN mkdir models
 
 COPY --from=dependencies /home/worker/app/.venv/ .venv
 COPY private_gpt/ private_gpt
+COPY scripts/ scripts
 COPY *.yaml *.md ./
 RUN poetry run python scripts/setup
 
