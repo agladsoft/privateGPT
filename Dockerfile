@@ -21,7 +21,7 @@ ENV POETRY_VIRTUALENVS_IN_PROJECT=true
 
 FROM base as dependencies
 WORKDIR /home/worker/app
-COPY scripts/ scripts
+
 COPY pyproject.toml poetry.lock ./
 
 RUN poetry install --with local
@@ -40,6 +40,7 @@ RUN mkdir models
 
 COPY --from=dependencies /home/worker/app/.venv/ .venv
 COPY private_gpt/ private_gpt
+COPY scripts/ scripts
 COPY fern/ fern
 COPY *.yaml *.md ./
 COPY pyproject.toml poetry.lock ./
