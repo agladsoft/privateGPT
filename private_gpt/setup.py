@@ -4,8 +4,8 @@ import argparse
 
 from huggingface_hub import hf_hub_download, snapshot_download
 
-from private_gpt.paths import models_path, models_cache_path
-from private_gpt.settings.settings import settings
+from paths import models_path, models_cache_path
+from settings.settings import settings
 
 resume_download = True
 if __name__ == '__main__':
