@@ -40,6 +40,6 @@ RUN mkdir models
 COPY --from=dependencies /home/worker/app/.venv/ .venv
 COPY private_gpt/ private_gpt
 COPY *.yaml *.md ./
-RUN .venv/bin/python -m scripts/setup
+RUN poetry run python scripts/setup
 
 ENTRYPOINT .venv/bin/python -m private_gpt
