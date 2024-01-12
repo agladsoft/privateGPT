@@ -45,4 +45,4 @@ COPY *.yaml *.md ./
 COPY pyproject.toml poetry.lock ./
 
 
-ENTRYPOINT .venv/bin/python -m scripts/setup && .venv/bin/python -m private_gpt
+ENTRYPOINT poetry run python scripts/setup && .venv/bin/python -m private_gpt
