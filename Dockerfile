@@ -42,6 +42,6 @@ COPY private_gpt/ private_gpt
 COPY scripts/ scripts
 COPY *.yaml *.md ./
 RUN cd scripts && ls
-RUN .venv/bin/python -m scripts/setup
+RUN .venv/bin/python -m scripts/setup.py
 
 ENTRYPOINT .venv/bin/python -m private_gpt
