@@ -43,6 +43,9 @@ COPY fern/ fern
 COPY *.yaml *.md ./
 COPY scripts/ scripts
 
+RUN ls
+RUN pwd
+
 RUN poetry run python scripts/setup
 
 ENTRYPOINT .venv/bin/python -m private_gpt
