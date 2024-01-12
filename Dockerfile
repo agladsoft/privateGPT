@@ -23,7 +23,7 @@ FROM base as dependencies
 WORKDIR /home/worker/app
 
 COPY pyproject.toml poetry.lock ./
-RUN export CMAKE_ARGS="-DLLAMA_CUBLAS=on" && export FORCE_CMAKE=1
+#RUN export CMAKE_ARGS="-DLLAMA_CUBLAS=on" && export FORCE_CMAKE=1
 
 RUN poetry install --with local
 RUN poetry install --with ui
