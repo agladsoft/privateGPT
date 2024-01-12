@@ -43,6 +43,9 @@ RUN mkdir local_data
 RUN mkdir models
 
 COPY --from=dependencies /home/worker/app/.venv/ .venv
+COPY private_gpt/ private_gpt
 COPY fern/ fern
+COPY scripts/ scripts
+COPY *.yaml *.md ./
 
 ENTRYPOINT .venv/bin/python -m private_gpt
