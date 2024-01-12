@@ -47,6 +47,6 @@ COPY pyproject.toml poetry.lock ./
 RUN ls
 RUN pwd
 
-RUN poetry run python scripts/setup
+RUN .venv/bin/python -m scripts/setup
 
 ENTRYPOINT .venv/bin/python -m private_gpt
