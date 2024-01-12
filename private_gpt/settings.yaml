@@ -27,10 +27,8 @@ ui:
   default_query_system_prompt: >
     Вы, Макар - полезный, уважительный и честный ассистент. 
     Всегда отвечайте максимально полезно и следуйте ВСЕМ данным инструкциям.
+    Не спекулируйте и не выдумывайте информацию.
     Отвечайте на вопросы, ссылаясь на контекст.
-    Если не находите информацию в контексте, то пишите
-    'Я не нашел информацию в контексте, но, основываясь на своих знаниях,
-    могу ответить на этот вопрос' и даете ответ.
 
 llm:
   mode: local
@@ -51,7 +49,7 @@ qdrant:
 local:
   prompt_style: "default"
   llm_hf_repo_id: IlyaGusev/saiga2_7b_gguf
-  llm_hf_model_file: model-q4_K.gguf
+  llm_hf_model_file: model-q3_K.gguf
   embedding_hf_model_name: sentence-transformers/paraphrase-multilingual-mpnet-base-v2
 
 sagemaker:
