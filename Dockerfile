@@ -39,9 +39,10 @@ RUN mkdir models
 
 COPY --from=dependencies /home/worker/app/.venv/ .venv
 COPY private_gpt/ private_gpt
-COPY scripts/ scripts
+COPY fern/ fern
 COPY *.yaml *.md ./
-RUN cd scripts && ls
-RUN .venv/bin/python -m scripts/setup.py
+COPY scripts/ scripts
 
-ENTRYPOINT .venv/bin/python -m private_gpt
+ENV PYTHONPATH="$PYTHONPATH:/private_gpt/"
+
+ENTRYPOINT python -m private_gpt
