@@ -45,5 +45,6 @@ COPY fern/ fern
 COPY *.yaml *.md ./
 COPY pyproject.toml poetry.lock ./
 
+RUN poetry run python setup
 
-ENTRYPOINT poetry run python setup && .venv/bin/python -m private_gpt
+ENTRYPOINT .venv/bin/python -m private_gpt
