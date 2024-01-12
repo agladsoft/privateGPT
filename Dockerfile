@@ -43,6 +43,6 @@ COPY fern/ fern
 COPY *.yaml *.md ./
 COPY scripts/ scripts
 
-ENV PYTHONPATH="$PYTHONPATH:/private_gpt/"
+#RUN .venv/bin/python -m scripts/setup
 
 ENTRYPOINT .venv/bin/python -m private_gpt
