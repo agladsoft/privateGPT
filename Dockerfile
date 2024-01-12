@@ -23,6 +23,7 @@ FROM base as dependencies
 WORKDIR /home/worker/app
 COPY private_gpt/ private_gpt
 COPY scripts/ scripts
+COPY *.yaml *.md ./
 COPY pyproject.toml poetry.lock ./
 
 RUN poetry install --with local
@@ -42,8 +43,6 @@ RUN mkdir local_data
 RUN mkdir models
 
 COPY --from=dependencies /home/worker/app/.venv/ .venv
-#COPY private_gpt/ private_gpt
 COPY fern/ fern
-COPY *.yaml *.md ./
 
 ENTRYPOINT .venv/bin/python -m private_gpt
