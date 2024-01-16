@@ -48,5 +48,5 @@ COPY *.yaml *.md ./
 COPY pyproject.toml poetry.lock ./
 RUN ls
 RUN poetry run python3 setup
-
+RUN ls && cd models && ls
 ENTRYPOINT .venv/bin/python -m private_gpt
