@@ -6,7 +6,7 @@ services:
     restart: always
     volumes:
       - ./local_data/:/home/worker/app/local_data
-      - ./models/:/home/worker/models
+      - ./models/:/home/worker/app/models
       - ./upload_files/:/home/worker/app/upload_files
     ports:
       - "8001:8080"
