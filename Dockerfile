@@ -42,11 +42,11 @@ RUN mkdir models
 
 COPY --from=dependencies /home/worker/app/.venv/ .venv
 COPY private_gpt/ private_gpt
-COPY scripts/setup setup
+COPY scripts/setup scripts/setup
 COPY fern/ fern
 COPY *.yaml *.md ./
 COPY pyproject.toml poetry.lock ./
 RUN ls
-RUN poetry run python3 setup
+RUN poetry run python3 scripts/setup
 RUN ls && cd models && ls
 ENTRYPOINT .venv/bin/python -m private_gpt
