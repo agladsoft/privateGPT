@@ -46,7 +46,8 @@ COPY scripts/setup scripts/setup
 COPY fern/ fern
 COPY *.yaml *.md ./
 COPY pyproject.toml poetry.lock ./
-RUN ls
+RUN ls && cd models && ls
+RUN pwd
 RUN poetry run python3 scripts/setup
 RUN ls && cd models && ls
 ENTRYPOINT .venv/bin/python -m private_gpt
