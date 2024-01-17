@@ -5,9 +5,26 @@ import subprocess
 from pathlib import Path
 
 from docx import Document as DocDocument
-from llama_index import Document
+from langchain.schema import Document
+# from llama_index import Document
 from llama_index.readers import JSONReader, StringIterableReader
 from llama_index.readers.file.base import DEFAULT_FILE_READER_CLS
+
+from langchain.document_loaders import (
+    CSVLoader,
+    EverNoteLoader,
+    PDFMinerLoader,
+    TextLoader,
+    UnstructuredEPubLoader,
+    UnstructuredHTMLLoader,
+    UnstructuredMarkdownLoader,
+    UnstructuredODTLoader,
+    UnstructuredPowerPointLoader,
+    UnstructuredWordDocumentLoader,
+)
+from typing import Optional, List, Union, Tuple
+from langchain.docstore.document import Document
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +35,21 @@ FILE_READER_CLS.update(
         ".json": JSONReader,
     }
 )
+
+LOADER_MAPPING: dict = {
+    ".csv": (CSVLoader, {}),
+    ".doc": (UnstructuredWordDocumentLoader, {}),
+    ".docx": (UnstructuredWordDocumentLoader, {}),
+    ".enex": (EverNoteLoader, {}),
+    ".epub": (UnstructuredEPubLoader, {}),
+    ".html": (UnstructuredHTMLLoader, {}),
+    ".md": (UnstructuredMarkdownLoader, {}),
+    ".odt": (UnstructuredODTLoader, {}),
+    ".pdf": (PDFMinerLoader, {}),
+    ".ppt": (UnstructuredPowerPointLoader, {}),
+    ".pptx": (UnstructuredPowerPointLoader, {}),
+    ".txt": (TextLoader, {"encoding": "utf8"}),
+}
 
 
 class IngestionHelper:
@@ -89,3 +121,48 @@ class IngestionHelper:
             document.excluded_embed_metadata_keys = ["doc_id"]
             # We don't want the LLM to receive these metadata in the context
             document.excluded_llm_metadata_keys = ["file_name", "doc_id", "page_label"]
+
+
+class IngestionHelperLangchain:
+    """Helper class to transform a file into a list of documents.
+
+    This class should be used to transform a file into a list of documents.
+    These methods are thread-safe (and multiprocessing-safe).
+    """
+
+    @staticmethod
+    def transform_file_into_documents(
+        files_name: List[str], text_splitter: RecursiveCharacterTextSplitter
+    ) -> tuple[str, list[Document]]:
+        def process_text(text: str) -> Optional[str]:
+            """
+
+            :param text:
+            :return:
+            """
+            lines: list = text.split("\n")
+            lines = [line for line in lines if len(line.strip()) > 2]
+            text = "\n".join(lines).strip()
+            return None if len(text) < 10 else text
+
+        load_documents: List[Document] = [
+            IngestionHelperLangchain._load_file_to_documents(path) for path in files_name
+        ]
+        documents = text_splitter.split_documents(load_documents)
+        fixed_documents: List[Document] = []
+        for doc in documents:
+            doc.page_content = process_text(doc.page_content)
+            if not doc.page_content:
+                continue
+            fixed_documents.append(doc)
+        return f"Загружено {len(fixed_documents)} фрагментов! Можно задавать вопросы.", documents
+
+    @staticmethod
+    def _load_file_to_documents(file_name: str) -> Document:
+        logger.debug("Transforming file_name=%s into documents", file_name)
+        ext: str = "." + file_name.rsplit(".", 1)[-1]
+        assert ext in LOADER_MAPPING
+        loader_class, loader_args = LOADER_MAPPING[ext]
+        loader = loader_class(file_name, **loader_args)
+        logger.debug("Specific reader found for extension=%s", ext)
+        return loader.load()[0]

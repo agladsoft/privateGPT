@@ -23,6 +23,14 @@ from private_gpt.components.ingest.ingest_helper import IngestionHelper
 from private_gpt.paths import local_data_path
 from private_gpt.settings.settings import Settings
 
+
+import chromadb
+from typing import Union, List
+from langchain.vectorstores import Chroma
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from private_gpt.components.ingest.ingest_helper import IngestionHelperLangchain
+
 logger = logging.getLogger(__name__)
 
 
@@ -102,6 +110,68 @@ class BaseIngestComponentWithIndex(BaseIngestComponent, abc.ABC):
             self._save_index()
 
 
+class BaseIngestComponentLangchain(abc.ABC):
+    def __init__(
+        self,
+        embedding_component: HuggingFaceEmbeddings,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        logger.debug("Initializing base ingest component type=%s", type(self).__name__)
+        self.embedding_component = embedding_component
+
+    @abc.abstractmethod
+    def ingest(self, file_name: str, file_data: Path) -> list[Document]:
+        pass
+
+    @abc.abstractmethod
+    def bulk_ingest(self, files: List[Document]) -> list[Document]:
+        pass
+
+    @abc.abstractmethod
+    def delete(self, doc_id: str) -> None:
+        pass
+
+
+class BaseIngestComponentWithIndexLangchain(BaseIngestComponentLangchain, abc.ABC):
+    def __init__(
+        self,
+        embedding_component: HuggingFaceEmbeddings,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(embedding_component, *args, **kwargs)
+
+        self.show_progress = True
+        self._index_thread_lock = (
+            threading.Lock()
+        )  # Thread lock! Not Multiprocessing lock
+        self.collection = "all-documents"
+        self._index = self._initialize_index()
+
+    def _initialize_index(self) -> BaseIndex[IndexDict]:
+        """Initialize the index from the storage context."""
+        # Load the index with store_nodes_override=True to be able to delete them
+        client = chromadb.PersistentClient(path=str(local_data_path))
+        index: Chroma = Chroma(
+            client=client,
+            collection_name=self.collection,
+            embedding_function=self.embedding_component,
+        )
+        return index
+
+    def _save_index(self) -> None:
+        self._index.storage_context.persist(persist_dir=local_data_path)
+
+    def delete(self, doc_id: str) -> None:
+        with self._index_thread_lock:
+            # Delete the document from the index
+            self._index.delete_ref_doc(doc_id, delete_from_docstore=True)
+
+            # Save the index
+            self._save_index()
+
+
 class SimpleIngestComponent(BaseIngestComponentWithIndex):
     def __init__(
         self,
@@ -121,14 +191,15 @@ class SimpleIngestComponent(BaseIngestComponentWithIndex):
         logger.debug("Saving the documents in the index and doc store")
         return self._save_docs(documents)
 
-    def bulk_ingest(self, files: list[tuple[str, Path]]) -> list[Document]:
+    def bulk_ingest(self, files: list[tuple[str, Path]]) -> str:
+        message = ""
         saved_documents = []
         for file_name, file_data in files:
-            documents = IngestionHelper.transform_file_into_documents(
+            message, documents = IngestionHelper.transform_file_into_documents(
                 file_name, file_data
             )
             saved_documents.extend(self._save_docs(documents))
-        return saved_documents
+        return message
 
     def _save_docs(self, documents: list[Document]) -> list[Document]:
         logger.debug("Transforming count=%s documents into nodes", len(documents))
@@ -139,6 +210,48 @@ class SimpleIngestComponent(BaseIngestComponentWithIndex):
             # persist the index and nodes
             self._save_index()
             logger.debug("Persisted the index and nodes")
+        return documents
+
+
+class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
+    def __init__(
+        self,
+        embedding_component: HuggingFaceEmbeddings,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(embedding_component, *args, **kwargs)
+
+    def ingest(self, file_name: str) -> Union[str, list[Document]]:
+        logger.info("Ingesting file_name=%s", file_name)
+        text_splitter: RecursiveCharacterTextSplitter = RecursiveCharacterTextSplitter(
+            separators=[".\n\n", ".\n"], chunk_size=1024, chunk_overlap=100
+        )
+        message, documents = IngestionHelperLangchain.transform_file_into_documents(file_name, text_splitter)
+        logger.info(
+            "Transformed file=%s into count=%s documents", file_name, len(documents)
+        )
+        logger.debug("Saving the documents in the index and doc store")
+        return message, self._save_docs(documents)
+
+    def bulk_ingest(self, files: List[str]) -> str:
+        saved_documents = []
+        text_splitter: RecursiveCharacterTextSplitter = RecursiveCharacterTextSplitter(
+            separators=[".\n\n", ".\n"], chunk_size=1024, chunk_overlap=100
+        )
+        message, documents = IngestionHelperLangchain.transform_file_into_documents(files, text_splitter)
+        saved_documents.extend(self._save_docs(documents))
+        return message
+
+    def _save_docs(self, documents: list[Document]) -> list[Document]:
+        logger.debug("Transforming count=%s documents into nodes", len(documents))
+        self._index.from_documents(
+            documents=documents,
+            embedding=self.embedding_component,
+            persist_directory=str(local_data_path),
+            collection_name=self.collection,
+        )
+        logger.debug("Persisting the index and nodes")
         return documents
 
 
@@ -326,3 +439,21 @@ def get_ingestion_component(
         )
     else:
         return SimpleIngestComponent(storage_context, service_context)
+
+
+def get_ingestion_component_langchain(
+    embedding_component: HuggingFaceEmbeddings,
+    settings: Settings,
+) -> Union[BaseIngestComponent, BaseIngestComponentLangchain]:
+    """Get the ingestion component for the given configuration."""
+    # ingest_mode = settings.embedding.ingest_mode
+    # if ingest_mode == "batch":
+    #     return BatchIngestComponent(
+    #         storage_context, service_context, settings.embedding.count_workers
+    #     )
+    # elif ingest_mode == "parallel":
+    #     return ParallelizedIngestComponent(
+    #         storage_context, service_context, settings.embedding.count_workers
+    #     )
+    # else:
+    return SimpleIngestComponentLangchain(embedding_component)

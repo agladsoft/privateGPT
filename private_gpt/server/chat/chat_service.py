@@ -25,6 +25,11 @@ from private_gpt.components.vector_store.vector_store_component import (
 from private_gpt.open_ai.extensions.context_filter import ContextFilter
 from private_gpt.server.chunks.chunks_service import Chunk
 
+import chromadb
+from langchain.vectorstores import Chroma
+from private_gpt.paths import local_data_path
+from langchain.embeddings import HuggingFaceEmbeddings
+
 logger = logging.getLogger(__name__)
 
 FILES_DIR = os.path.join(PROJECT_ROOT_PATH, "upload_files")
@@ -84,24 +89,32 @@ class ChatService:
         self,
         llm_component: LLMComponent,
         vector_store_component: VectorStoreComponent,
-        embedding_component: EmbeddingComponent,
+        embedding_component: HuggingFaceEmbeddings,
         node_store_component: NodeStoreComponent,
     ) -> None:
-        self.llm_service = llm_component
-        self.vector_store_component = vector_store_component
-        self.storage_context = StorageContext.from_defaults(
-            vector_store=vector_store_component.vector_store,
-            docstore=node_store_component.doc_store,
-            index_store=node_store_component.index_store,
-        )
-        self.service_context = ServiceContext.from_defaults(
-            llm=llm_component.llm, embed_model=embedding_component.embedding_model
-        )
-        self.index = VectorStoreIndex.from_vector_store(
-            vector_store_component.vector_store,
-            storage_context=self.storage_context,
-            service_context=self.service_context,
-            show_progress=True,
+        # self.llm_service = llm_component
+        # self.vector_store_component = vector_store_component
+        # self.storage_context = StorageContext.from_defaults(
+        #     vector_store=vector_store_component.vector_store,
+        #     docstore=node_store_component.doc_store,
+        #     index_store=node_store_component.index_store,
+        # )
+        # self.service_context = ServiceContext.from_defaults(
+        #     llm=llm_component.llm, embed_model=embedding_component.embedding_model
+        # )
+        # self.index = VectorStoreIndex.from_vector_store(
+        #     vector_store_component.vector_store,
+        #     storage_context=self.storage_context,
+        #     service_context=self.service_context,
+        #     show_progress=True,
+        # )
+        self.llm = llm_component.llm
+        self.collection = "all-documents"
+        client = chromadb.PersistentClient(path=str(local_data_path))
+        self.index: Chroma = Chroma(
+            client=client,
+            collection_name=self.collection,
+            embedding_function=embedding_component,
         )
 
     def stream_chat(
@@ -110,47 +123,50 @@ class ChatService:
         use_context: bool = False,
         limit: int = 2,
         context_filter: ContextFilter | None = None
-    ) -> Union[Tuple[CompletionGen, str], CompletionGen]:
+    ) -> str:
         chat_engine_input = ChatEngineInput.from_messages(messages)
         last_message = (
             chat_engine_input.last_message.content
             if chat_engine_input.last_message
             else None
         )
-        system_prompt = (
-            chat_engine_input.system_message.content
-            if chat_engine_input.system_message
-            else None
-        )
-        chat_history = (
-            chat_engine_input.chat_history if chat_engine_input.chat_history else None
-        )
+        # system_prompt = (
+        #     chat_engine_input.system_message.content
+        #     if chat_engine_input.system_message
+        #     else None
+        # )
+        # chat_history = (
+        #     chat_engine_input.chat_history if chat_engine_input.chat_history else None
+        # )
 
-        chat_engine = self._chat_engine(
-            limit=limit,
-            system_prompt=system_prompt,
-            use_context=use_context,
-            context_filter=context_filter,
+        # chat_engine = self._chat_engine(
+        #     limit=limit,
+        #     system_prompt=system_prompt,
+        #     use_context=use_context,
+        #     context_filter=context_filter,
+        # )
+        # streaming_response = chat_engine.stream_chat(
+        #     message=last_message if last_message is not None else "",
+        #     chat_history=chat_history,
+        # )
+        docs = self.index.similarity_search_with_score(
+            query=last_message if last_message is not None else "", k=limit
         )
-        streaming_response = chat_engine.stream_chat(
-            message=last_message if last_message is not None else "",
-            chat_history=chat_history,
-        )
-        if use_context:
-            content = ""
-            for node in streaming_response.source_nodes:
-                url = f"""<a href="file/{node.metadata['file_name']}" target="_blank" 
-                    rel="noopener noreferrer">{os.path.basename(node.metadata['file_name'])}</a>"""
-                content += f"Документ - {url}\n\n" \
-                           f"Score: {round(node.score, 2)}, Text: {node.text}\n\n\n"
-        else:
-            content = None
+        content = ""
+        if not use_context:
+            return "Появятся после задавания вопросов"
+        for doc in docs:
+            url = f"""<a href="file/{doc[0].metadata['source']}" target="_blank" 
+                    rel="noopener noreferrer">{os.path.basename(doc[0].metadata['source'])}</a>"""
+            content += f"Документ - {url}\n\n" \
+                       f"Score: {round(doc[1], 2)}, Text: {doc[0].page_content}\n\n\n"
         # content = streaming_response.sources[0].content if use_context else None
-        sources = [Chunk.from_node(node) for node in streaming_response.source_nodes]
-        completion_gen = CompletionGen(
-            response=streaming_response.response_gen, sources=sources
-        )
-        return (completion_gen, content) if use_context else completion_gen
+        # sources = [Chunk.from_node(node) for node in streaming_response.source_nodes]
+        # completion_gen = CompletionGen(
+        #     response=streaming_response.response_gen, sources=sources
+        # )
+        # return (completion_gen, content) if use_context else completion_gen
+        return content
 
     def _chat_engine(
         self,

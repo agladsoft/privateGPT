@@ -44,7 +44,7 @@ vectorstore:
   database: qdrant
 
 qdrant:
-  path: local_data/private_gpt/qdrant
+  path: local_data/private_gpt/chroma
 
 local:
   prompt_style: "default"

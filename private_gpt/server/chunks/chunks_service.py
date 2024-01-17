@@ -68,9 +68,9 @@ class ChunksService:
             docstore=node_store_component.doc_store,
             index_store=node_store_component.index_store,
         )
-        self.query_service_context = ServiceContext.from_defaults(
-            llm=llm_component.llm, embed_model=embedding_component.embedding_model
-        )
+        # self.query_service_context = ServiceContext.from_defaults(
+        #     llm=llm_component.llm, embed_model=embedding_component.embedding_model
+        # )
 
     def _get_sibling_nodes_text(
         self, node_with_score: NodeWithScore, related_number: int, forward: bool = True

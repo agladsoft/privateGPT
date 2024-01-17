@@ -27,6 +27,6 @@ class IngestedDoc(BaseModel):
     def from_document(document: Document) -> "IngestedDoc":
         return IngestedDoc(
             object="ingest.document",
-            doc_id=document.doc_id,
+            # doc_id=document.doc_id,
             doc_metadata=IngestedDoc.curate_metadata(document.metadata),
         )

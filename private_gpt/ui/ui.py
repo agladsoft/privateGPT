@@ -4,7 +4,7 @@ import logging
 import os.path
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
+from typing import Any, List
 
 import gradio as gr  # type: ignore
 from fastapi import FastAPI
@@ -21,6 +21,9 @@ from private_gpt.server.ingest.ingest_service import IngestService
 from private_gpt.settings.settings import settings
 from private_gpt.ui.images import FAVICON_PATH
 
+import re
+import tempfile
+
 logger = logging.getLogger(__name__)
 
 THIS_DIRECTORY_RELATIVE = Path(__file__).parent.relative_to(PROJECT_ROOT_PATH)
@@ -33,6 +36,17 @@ UI_TAB_TITLE = "RusconGPT"
 SOURCES_SEPARATOR = "\n\n Sources: \n"
 
 MODES = ["DB", "Search in DB", "LLM"]
+MAX_NEW_TOKENS: int = 1500
+LINEBREAK_TOKEN: int = 13
+SYSTEM_TOKEN: int = 1788
+USER_TOKEN: int = 1404
+BOT_TOKEN: int = 9225
+
+ROLE_TOKENS: dict = {
+    "user": USER_TOKEN,
+    "bot": BOT_TOKEN,
+    "system": SYSTEM_TOKEN
+}
 
 BLOCK_CSS = """
 
@@ -133,19 +147,19 @@ class PrivateGptUi:
             )
         match mode:
             case "DB":
-                query_stream, content = self._chat_service.stream_chat(
+                content = self._chat_service.stream_chat(
                     messages=all_messages,
                     use_context=True,
                     limit=limit
                 )
-                return "", history + [[message, None]], query_stream, content
+                return "", history + [[message, None]], content
 
             case "LLM":
-                llm_stream = self._chat_service.stream_chat(
+                content = self._chat_service.stream_chat(
                     messages=all_messages,
                     use_context=False,
                 )
-                return "", history + [[message, None]], llm_stream, "Появятся после задавания вопросов"
+                return "", history + [[message, None]], content
 
             case "Search in DB":
                 response = self._chunks_service.retrieve_relevant(
@@ -186,22 +200,33 @@ class PrivateGptUi:
         else:
             return gr.update(placeholder=self._system_prompt, interactive=False)
 
-    def _list_ingested_files(self) -> list[list[str]]:
-        files = set()
-        for ingested_document in self._ingest_service.list_ingested():
-            if ingested_document.doc_metadata is None:
-                # Skipping documents without metadata
-                continue
-            file_name = ingested_document.doc_metadata.get(
-                "file_name", "[FILE NAME MISSING]"
-            )
-            files.add(os.path.basename(file_name))
-        return [[row] for row in files]
+    # def _list_ingested_files(self) -> list[list[str]]:
+    #     files = set()
+    #     for ingested_document in self._ingest_service.list_ingested():
+    #         if ingested_document.doc_metadata is None:
+    #             # Skipping documents without metadata
+    #             continue
+    #         file_name = ingested_document.doc_metadata.get(
+    #             "file_name", "[FILE NAME MISSING]"
+    #         )
+    #         files.add(os.path.basename(file_name))
+    #     return [[row] for row in files]
+    #
+    # def delete_doc(self, documents: str):
+    #     logger.info(f"Documents is {documents}")
+    #     list_documents: list[str] = documents.strip().split("\n")
+    #     for node in self._ingest_service.list_ingested():
+    #         if node.doc_id is not None and os.path.basename(node.doc_metadata["file_name"]) in list_documents:
+    #             self._ingest_service.delete(node.doc_id)
+    #     return "", self._list_ingested_files()
+
+    def _list_ingested_files(self):
+        return self._ingest_service.list_ingested_langchain()
 
     def delete_doc(self, documents: str):
         logger.info(f"Documents is {documents}")
         list_documents: list[str] = documents.strip().split("\n")
-        for node in self._ingest_service.list_ingested():
+        for node in self._ingest_service.list_ingested_langchain():
             if node.doc_id is not None and os.path.basename(node.doc_metadata["file_name"]) in list_documents:
                 self._ingest_service.delete(node.doc_id)
         return "", self._list_ingested_files()
@@ -216,50 +241,86 @@ class PrivateGptUi:
         return history[-1][0], history
 
     @staticmethod
-    def _chat(history, gen_message, mode):
+    def get_message_tokens(model, role: str, content: str) -> list:
+        """
 
-        def yield_deltas(completion_gen: CompletionGen) -> Iterable[str]:
-            full_response: str = ""
-            stream = completion_gen.response
-            for delta in stream:
-                if isinstance(delta, str):
-                    full_response += str(delta)
-                elif isinstance(delta, ChatResponse):
-                    full_response += delta.delta or ""
-                history[-1][1] = full_response
-                yield history
+        :param model:
+        :param role:
+        :param content:
+        :return:
+        """
+        message_tokens: list = model.tokenize(content.encode("utf-8"))
+        message_tokens.insert(1, ROLE_TOKENS[role])
+        message_tokens.insert(2, LINEBREAK_TOKEN)
+        message_tokens.append(model.token_eos())
+        return message_tokens
 
-            if completion_gen.sources:
-                full_response += SOURCES_SEPARATOR
-                cur_sources = Source.curate_sources(completion_gen.sources)
-                sources_text = "\n\n\n".join(
-                    f"\n{index}. {source.file} (page {source.page})"
-                    for index, source in enumerate(cur_sources, start=1)
-                )
-                if history[-1][1] is None:
-                    history[-1][1] = "Слишком большой контекст, сократите его"
-                history[-1][1] += sources_text
+    def get_system_tokens(self, model) -> list:
+        """
+
+        :param model:
+        :return:
+        """
+        system_message: dict = {"role": "system", "content": self._system_prompt}
+        return self.get_message_tokens(model, **system_message)
+
+    def bot(self, history, retrieved_docs, mode):
+        """
+
+        :param history:
+        :param retrieved_docs:
+        :param mode:
+        :return:
+        """
+        if not history:
+            return
+        model = self._chat_service.llm
+        tokens = self.get_system_tokens(model)[:]
+        tokens.append(LINEBREAK_TOKEN)
+
+        for user_message, bot_message in history[-4:-1]:
+            message_tokens = self.get_message_tokens(model=model, role="user", content=user_message)
+            tokens.extend(message_tokens)
+
+        last_user_message = history[-1][0]
+        pattern = r'<a\s+[^>]*>(.*?)</a>'
+        match = re.search(pattern, retrieved_docs)
+        result_text = match[1] if match else ""
+        retrieved_docs = re.sub(pattern, result_text, retrieved_docs)
+        if retrieved_docs and mode:
+            last_user_message = f"Контекст: {retrieved_docs}\n\nИспользуя только контекст, ответь на вопрос: " \
+                                    f"{last_user_message}"
+        message_tokens = self.get_message_tokens(model=model, role="user", content=last_user_message)
+        tokens.extend(message_tokens)
+
+        role_tokens = [model.token_bos(), BOT_TOKEN, LINEBREAK_TOKEN]
+        tokens.extend(role_tokens)
+        generator = model.generate(
+            tokens,
+            top_k=80,
+            top_p=0.9,
+            temp=0.1
+        )
+
+        partial_text = ""
+        for i, token in enumerate(generator):
+            if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
+                break
+            partial_text += model.detokenize([token]).decode("utf-8", "ignore")
+            history[-1][1] = partial_text
             yield history
 
+    def _chat(self, history, context, mode):
         match mode:
             case "DB":
-                yield from yield_deltas(gen_message)
+                yield from self.bot(history, context, True)
             case "LLM":
-                yield from yield_deltas(gen_message)
-            case "Search in DB":
-                history[-1][1] = "\n\n\n".join(
-                    f"{index}. **{source.file} "
-                    f"(page {source.page})**\n "
-                    f"{source.text}"
-                    for index, source in enumerate(gen_message, start=1)
-                )
-                yield history
+                yield from self.bot(history, context, False)
 
-    def _upload_file(self, files: list[str]):
+    def _upload_file(self, files: List[tempfile.TemporaryFile]):
         logger.debug("Loading count=%s files", len(files))
-        paths = [Path(file) for file in files]
-        self._ingest_service.bulk_ingest([(str(path.name), path) for path in paths])
-        return "Файлы загружены", self._list_ingested_files()
+        message = self._ingest_service.bulk_ingest([f.name for f in files])
+        return message, self._list_ingested_files()
 
     def _build_ui_blocks(self) -> gr.Blocks:
         logger.debug("Creating the UI blocks")
@@ -410,11 +471,11 @@ class PrivateGptUi:
             submit_event = msg.submit(
                 fn=self._get_context,
                 inputs=[msg, chatbot, mode, limit],
-                outputs=[msg, chatbot, response, content],
+                outputs=[msg, chatbot, content],
                 queue=True,
             ).success(
                 fn=self._chat,
-                inputs=[chatbot, response, mode],
+                inputs=[chatbot, content, mode],
                 outputs=chatbot,
                 queue=True,
             )
@@ -423,11 +484,11 @@ class PrivateGptUi:
             submit_click_event = submit.click(
                 fn=self._get_context,
                 inputs=[msg, chatbot, mode, limit],
-                outputs=[msg, chatbot, response, content],
+                outputs=[msg, chatbot, content],
                 queue=True,
             ).success(
                 fn=self._chat,
-                inputs=[chatbot, response, mode],
+                inputs=[chatbot, content, mode],
                 outputs=chatbot,
                 queue=True,
             )
@@ -441,11 +502,11 @@ class PrivateGptUi:
             ).success(
                 fn=self._get_context,
                 inputs=[msg, chatbot, mode, limit],
-                outputs=[msg, chatbot, response, content],
+                outputs=[msg, chatbot, content],
                 queue=True,
             ).success(
                 fn=self._chat,
-                inputs=[chatbot, response, mode],
+                inputs=[chatbot, content, mode],
                 outputs=chatbot,
                 queue=True,
             )
