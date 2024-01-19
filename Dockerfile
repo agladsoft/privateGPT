@@ -7,15 +7,15 @@ ENV DEBIAN_FRONTEND=noninteractive \
     FORCE_CMAKE=1 \
     TZ=Europe/Minsk
 
+RUN apt update -y && apt upgrade -y && apt install libreoffice -y && apt install pip -y  \
+    && apt install nvidia-driver-535 -y
+
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN apt install software-properties-common -y
 RUN add-apt-repository ppa:deadsnakes/ppa -y
 RUN apt-get update -y
 RUN apt install python3.11 python3-pip -y
 RUN update-alternatives --install /usr/bin/python python /usr/local/bin/python3.11 1
-
-RUN apt update -y && apt upgrade -y && apt install libreoffice -y && apt install pip -y  \
-    && apt install nvidia-driver-535 -y
 
 # Install poetry
 RUN pip install pipx
