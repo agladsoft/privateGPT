@@ -32,7 +32,7 @@ RUN python3 -m pip install --upgrade pip
 RUN update-alternatives --install /usr/bin/python3 python /usr/bin/python$PYVER 1
 RUN update-alternatives --set python /usr/bin/python$PYVER
 RUN update-alternatives --set python /usr/bin/python$PYVER
-
+RUN python3 -V
 # Install poetry
 RUN pip install pipx
 RUN python -m pipx ensurepath
