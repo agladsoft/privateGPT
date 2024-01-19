@@ -111,7 +111,7 @@ class PrivateGptUi:
         self.mode = MODES[0]
         self._system_prompt = self._get_default_system_prompt(self.mode)
 
-    def _get_context(self, history: list[list[str]], mode: str, limit, *_: Any) -> Any:
+    def _get_context(self, history: list[list[str]], mode: str, limit, *_: Any):
         match mode:
             case "DB":
                 content = self._chat_service.retrieve(
@@ -328,7 +328,7 @@ class PrivateGptUi:
                         )
 
                 with gr.Row():
-                    with gr.Column(scale=5, variant="compact"):
+                    with gr.Column(scale=4, variant="compact"):
                         mode = gr.Radio(
                             MODES,
                             label="Коллекции",
@@ -454,7 +454,7 @@ class PrivateGptUi:
             ).success(
                 fn=self._get_context,
                 inputs=[chatbot, mode, limit],
-                outputs=[chatbot, mode],
+                outputs=[content, mode],
                 queue=True,
             ).success(
                 fn=self._chat,
