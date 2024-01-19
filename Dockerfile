@@ -9,7 +9,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN apt install software-properties-common -y
-RUN add-apt-repository ppa:deadsnakes/ppa
+RUN add-apt-repository ppa:deadsnakes/ppa -y
 RUN apt-get update -y
 RUN apt install python3.11 python3-pip -y
 RUN update-alternatives --install /usr/bin/python python /usr/local/bin/python3.11 1
