@@ -4,15 +4,18 @@ FROM nvidia/cuda:12.2.2-devel-ubuntu22.04 as base
 
 ENV DEBIAN_FRONTEND=noninteractive \
     CMAKE_ARGS="-DLLAMA_CUBLAS=ON" \
-    FORCE_CMAKE=1
+    FORCE_CMAKE=1 \
+    TZ=Europe/Minsk
+
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+RUN apt install software-properties-common -y
+RUN add-apt-repository ppa:deadsnakes/ppa
+RUN apt-get update -y
+RUN apt install python3.11 python3-pip -y
+RUN update-alternatives --install /usr/bin/python python /usr/local/bin/python3.11 1
 
 RUN apt update -y && apt upgrade -y && apt install libreoffice -y && apt install pip -y  \
     && apt install nvidia-driver-535 -y
-
-RUN apt-get install software-properties-common -y
-RUN add-apt-repository ppa:deadsnakes/ppa -y && apt install python3.11 -y && apt install python3.11-venv -y
-RUN apt-get update -y
-RUN update-alternatives --install /usr/bin/python python /usr/local/bin/python3.11 1
 
 # Install poetry
 RUN pip install pipx
