@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     FORCE_CMAKE=1
 
 RUN apt update -y && apt upgrade -y && apt install libreoffice -y && apt install pip -y  \
-    && apt install nvidia-driver-535 -y && apt install virtualvenv
+    && apt install nvidia-driver-535 -y && apt install python3.10-venv
 
 # Install poetry
 RUN pip install pipx
