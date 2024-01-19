@@ -20,6 +20,7 @@ from langchain.vectorstores import Chroma
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from private_gpt.components.ingest.ingest_helper import IngestionHelperLangchain
+from private_gpt.components.embedding.embedding_component import EmbeddingComponent
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ logger = logging.getLogger(__name__)
 class BaseIngestComponentLangchain(abc.ABC):
     def __init__(
         self,
-        embedding_component: HuggingFaceEmbeddings,
+        embedding_component: EmbeddingComponent,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -50,7 +51,7 @@ class BaseIngestComponentLangchain(abc.ABC):
 class BaseIngestComponentWithIndexLangchain(BaseIngestComponentLangchain, abc.ABC):
     def __init__(
         self,
-        embedding_component: HuggingFaceEmbeddings,
+        embedding_component: EmbeddingComponent,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -70,7 +71,7 @@ class BaseIngestComponentWithIndexLangchain(BaseIngestComponentLangchain, abc.AB
         index: Chroma = Chroma(
             client=client,
             collection_name=self.collection,
-            embedding_function=self.embedding_component,
+            embedding_function=self.embedding_component.embedding_model,
         )
         return index
 
@@ -89,7 +90,7 @@ class BaseIngestComponentWithIndexLangchain(BaseIngestComponentLangchain, abc.AB
 class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
     def __init__(
         self,
-        embedding_component: HuggingFaceEmbeddings,
+        embedding_component: EmbeddingComponent,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -127,15 +128,14 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
             f"{os.path.basename(doc.metadata['source']).replace('.txt', '')}{i}"
             for i, doc in enumerate(documents)
         ]
-        saved_documents = []
-        saved_documents.extend(self._save_docs(documents, ids))
+        self._save_docs(documents, ids)
         return message
 
     def _save_docs(self, documents: list[Document], ids: List[str]) -> list[Document]:
         logger.debug("Transforming count=%s documents into nodes", len(documents))
         self._index.from_documents(
             documents=documents,
-            embedding=self.embedding_component,
+            embedding=self.embedding_component.embedding_model,
             ids=ids,
             persist_directory=str(local_data_path),
             collection_name=self.collection,
@@ -145,7 +145,7 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
 
 
 def get_ingestion_component_langchain(
-    embedding_component: HuggingFaceEmbeddings,
+    embedding_component: EmbeddingComponent,
     settings: Settings,
 ) -> BaseIngestComponentLangchain:
     """Get the ingestion component for the given configuration."""
