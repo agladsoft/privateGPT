@@ -9,6 +9,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN apt update -y && apt upgrade -y && apt install libreoffice -y && apt install pip -y  \
     && apt install nvidia-driver-535 -y
 
+RUN pt-get install software-properties-common
 RUN add-apt-repository ppa:deadsnakes/ppa -y && apt install python3.11 -y && apt install python3.11-venv -y
 RUN apt-get update -y
 RUN update-alternatives --install /usr/bin/python python /usr/local/bin/python3.11 1
