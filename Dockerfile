@@ -27,7 +27,7 @@ RUN apt-get -y upgrade
 
 # Update PIP (Python's package manager)
 RUN python3 -m pip install --upgrade pip
-
+RUN python3 -V
 # Set PYVER as the default Python interpreter
 RUN update-alternatives --install /usr/bin/python3 python /usr/bin/python$PYVER 1
 RUN update-alternatives --set python /usr/bin/python$PYVER
@@ -36,7 +36,7 @@ RUN python3 -V
 # Install poetry
 RUN pip install pipx
 RUN python3 -m pipx ensurepath
-RUN pipx install poetry
+RUN pip install poetry
 ENV PATH="/root/.local/bin:$PATH"
 
 # Dependencies to build llama-cpp
