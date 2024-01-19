@@ -12,6 +12,7 @@ RUN apt update -y && apt upgrade -y && apt install libreoffice -y && apt install
 
 RUN apt-get update -y
 
+ARG PYVER="3.11"
 # Install Python (software-properties-common), Git, and Python utilities
 # Learn about the deadsnakes Personal Package Archives, hosted by Ubuntu:
 # https://www.youtube.com/watch?v=Xe40amojaXE
