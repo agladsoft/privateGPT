@@ -1,5 +1,5 @@
 .venv
-models
+#models
 .github
 .vscode
 .DS_Store
