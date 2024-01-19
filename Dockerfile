@@ -15,7 +15,7 @@ RUN apt install software-properties-common -y
 RUN add-apt-repository ppa:deadsnakes/ppa -y
 RUN apt-get update -y
 RUN apt install python3.11 python3-pip -y
-RUN python -V
+RUN python3 -V
 RUN update-alternatives --install /usr/bin/python python /usr/local/bin/python3.11 1
 
 # Install poetry
