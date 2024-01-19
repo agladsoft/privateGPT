@@ -16,8 +16,8 @@ RUN add-apt-repository ppa:deadsnakes/ppa -y
 RUN apt-get update -y
 RUN apt install python3.11 python3-pip -y
 RUN python3 -V
-RUN update-alternatives --install /usr/bin/python python /usr/local/bin/python3.11 1
-
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/local/bin/python3.11 1
+RUN python3 -V
 # Install poetry
 RUN pip install pipx
 RUN python -m pipx ensurepath
