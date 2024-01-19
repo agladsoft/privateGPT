@@ -10,14 +10,28 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN apt update -y && apt upgrade -y && apt install libreoffice -y && apt install pip -y  \
     && apt install nvidia-driver-535 -y
 
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
-RUN apt install software-properties-common -y
-RUN add-apt-repository ppa:deadsnakes/ppa -y
 RUN apt-get update -y
-RUN apt install python3.11 python3-pip -y
-RUN python3 -V
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/local/bin/python3.11 1
-RUN python3 -V
+
+# Install Python (software-properties-common), Git, and Python utilities
+# Learn about the deadsnakes Personal Package Archives, hosted by Ubuntu:
+# https://www.youtube.com/watch?v=Xe40amojaXE
+RUN apt-get install -y software-properties-common && \
+    add-apt-repository -y ppa:deadsnakes/ppa && \
+    apt-get install -y python$PYVER \
+    python3-pip \
+    git-all
+
+# Upgrade packages to the latest version
+RUN apt-get -y upgrade
+
+# Update PIP (Python's package manager)
+RUN python3 -m pip install --upgrade pip
+
+# Set PYVER as the default Python interpreter
+RUN update-alternatives --install /usr/bin/python3 python /usr/bin/python$PYVER 1
+RUN update-alternatives --set python /usr/bin/python$PYVER
+RUN update-alternatives --set python /usr/bin/python$PYVER
+
 # Install poetry
 RUN pip install pipx
 RUN python -m pipx ensurepath
