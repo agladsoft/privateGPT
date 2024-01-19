@@ -80,6 +80,4 @@ COPY pyproject.toml poetry.lock ./
 
 RUN poetry run python3 setup
 
-COPY models/ models
-
 ENTRYPOINT .venv/bin/python3 -m private_gpt
