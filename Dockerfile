@@ -1,6 +1,13 @@
 ### IMPORTANT, THIS IMAGE CAN ONLY BE RUN IN LINUX DOCKER
 ### You will run into a segfault in mac
-FROM python:3.11.6-slim-bookworm as base
+FROM nvidia/cuda:12.2.2-devel-ubuntu22.04 as base
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    CMAKE_ARGS="-DLLAMA_CUBLAS=ON" \
+    FORCE_CMAKE=1
+
+RUN apt update -y && apt upgrade -y && apt install libreoffice -y && apt install pip -y  \
+    && apt install nvidia-driver-535 -y
 
 # Install poetry
 RUN pip install pipx
@@ -46,7 +53,7 @@ COPY scripts/setup setup
 COPY fern/ fern
 COPY *.yaml *.md ./
 COPY pyproject.toml poetry.lock ./
+
 RUN poetry run python3 setup
-RUN cd models && ls
-RUN pwd
+
 ENTRYPOINT .venv/bin/python -m private_gpt

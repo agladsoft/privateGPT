@@ -16,7 +16,7 @@ from llama_index.llms import ChatMessage, MessageRole
 from llama_index.types import TokenGen
 from pydantic import BaseModel
 
-from private_gpt.components.embedding.embedding_component import EmbeddingComponent
+from private_gpt.components.embedding.embedding_component import EmbeddingComponent, EmbeddingComponentLangchain
 from private_gpt.components.llm.llm_component import LLMComponent
 from private_gpt.components.node_store.node_store_component import NodeStoreComponent
 from private_gpt.components.vector_store.vector_store_component import (
@@ -89,84 +89,39 @@ class ChatService:
         self,
         llm_component: LLMComponent,
         vector_store_component: VectorStoreComponent,
-        embedding_component: HuggingFaceEmbeddings,
+        embedding_component: EmbeddingComponentLangchain,
         node_store_component: NodeStoreComponent,
     ) -> None:
-        # self.llm_service = llm_component
-        # self.vector_store_component = vector_store_component
-        # self.storage_context = StorageContext.from_defaults(
-        #     vector_store=vector_store_component.vector_store,
-        #     docstore=node_store_component.doc_store,
-        #     index_store=node_store_component.index_store,
-        # )
-        # self.service_context = ServiceContext.from_defaults(
-        #     llm=llm_component.llm, embed_model=embedding_component.embedding_model
-        # )
-        # self.index = VectorStoreIndex.from_vector_store(
-        #     vector_store_component.vector_store,
-        #     storage_context=self.storage_context,
-        #     service_context=self.service_context,
-        #     show_progress=True,
-        # )
         self.llm = llm_component.llm
         self.collection = "all-documents"
         client = chromadb.PersistentClient(path=str(local_data_path))
         self.index: Chroma = Chroma(
             client=client,
             collection_name=self.collection,
-            embedding_function=embedding_component,
+            embedding_function=embedding_component.embedding_model,
         )
 
-    def stream_chat(
+    def retrieve(
         self,
-        messages: list[ChatMessage],
+        history,
         use_context: bool = False,
-        limit: int = 2,
-        context_filter: ContextFilter | None = None
+        limit: int = 2
     ) -> str:
-        chat_engine_input = ChatEngineInput.from_messages(messages)
-        last_message = (
-            chat_engine_input.last_message.content
-            if chat_engine_input.last_message
-            else None
-        )
-        # system_prompt = (
-        #     chat_engine_input.system_message.content
-        #     if chat_engine_input.system_message
-        #     else None
-        # )
-        # chat_history = (
-        #     chat_engine_input.chat_history if chat_engine_input.chat_history else None
-        # )
-
-        # chat_engine = self._chat_engine(
-        #     limit=limit,
-        #     system_prompt=system_prompt,
-        #     use_context=use_context,
-        #     context_filter=context_filter,
-        # )
-        # streaming_response = chat_engine.stream_chat(
-        #     message=last_message if last_message is not None else "",
-        #     chat_history=chat_history,
-        # )
-        docs = self.index.similarity_search_with_score(
-            query=last_message if last_message is not None else "", k=limit
-        )
-        content = ""
-        if not use_context:
+        if not use_context or not history or not history[-1][0]:
             return "Появятся после задавания вопросов"
+        last_user_message = history[-1][0]
+        docs = self.index.similarity_search_with_score(last_user_message, limit)
+        data: dict = {}
         for doc in docs:
-            url = f"""<a href="file/{doc[0].metadata['source']}" target="_blank" 
-                    rel="noopener noreferrer">{os.path.basename(doc[0].metadata['source'])}</a>"""
-            content += f"Документ - {url}\n\n" \
-                       f"Score: {round(doc[1], 2)}, Text: {doc[0].page_content}\n\n\n"
-        # content = streaming_response.sources[0].content if use_context else None
-        # sources = [Chunk.from_node(node) for node in streaming_response.source_nodes]
-        # completion_gen = CompletionGen(
-        #     response=streaming_response.response_gen, sources=sources
-        # )
-        # return (completion_gen, content) if use_context else completion_gen
-        return content
+            url = f"""<a href="file/{doc[0].metadata["source"]}" target="_blank" 
+                rel="noopener noreferrer">{os.path.basename(doc[0].metadata["source"])}</a>"""
+            document: str = f'Документ - {url} ↓'
+            if document in data:
+                data[document] += "\n\n" + f"Score: {round(doc[1], 2)}, Text: {doc[0].page_content}"
+            else:
+                data[document] = f"Score: {round(doc[1], 2)}, Text: {doc[0].page_content}"
+        list_data: list = [f"{doc}\n\n{text}" for doc, text in data.items()]
+        return "\n\n\n".join(list_data) if list_data else "Документов в базе нету"
 
     def _chat_engine(
         self,

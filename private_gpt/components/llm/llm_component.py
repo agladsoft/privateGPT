@@ -43,6 +43,7 @@ class LLMComponent:
                 #     verbose=True,
                 # )
                 self.llm = Llama(
+                    n_gpu_layers=35,
                     model_path=str(models_path / settings.local.llm_hf_model_file),
                     n_ctx=settings.llm.context_window,
                     n_parts=1,

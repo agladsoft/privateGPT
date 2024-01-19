@@ -132,7 +132,7 @@ class IngestionHelperLangchain:
 
     @staticmethod
     def transform_file_into_documents(
-        files_name: List[str], text_splitter: RecursiveCharacterTextSplitter
+        load_documents: List[Document], text_splitter: RecursiveCharacterTextSplitter
     ) -> tuple[str, list[Document]]:
         def process_text(text: str) -> Optional[str]:
             """
@@ -143,11 +143,8 @@ class IngestionHelperLangchain:
             lines: list = text.split("\n")
             lines = [line for line in lines if len(line.strip()) > 2]
             text = "\n".join(lines).strip()
-            return None if len(text) < 10 else text
+            return "" if len(text) < 10 else text
 
-        load_documents: List[Document] = [
-            IngestionHelperLangchain._load_file_to_documents(path) for path in files_name
-        ]
         documents = text_splitter.split_documents(load_documents)
         fixed_documents: List[Document] = []
         for doc in documents:
@@ -155,7 +152,7 @@ class IngestionHelperLangchain:
             if not doc.page_content:
                 continue
             fixed_documents.append(doc)
-        return f"Загружено {len(fixed_documents)} фрагментов! Можно задавать вопросы.", documents
+        return f"Загружено {len(fixed_documents)} фрагментов! Можно задавать вопросы.", fixed_documents
 
     @staticmethod
     def _load_file_to_documents(file_name: str) -> Document:

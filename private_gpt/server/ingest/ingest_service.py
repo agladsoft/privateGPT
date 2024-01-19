@@ -11,7 +11,6 @@ from llama_index import (
 from llama_index.node_parser import SentenceWindowNodeParser
 
 from private_gpt.components.embedding.embedding_component import EmbeddingComponent
-from private_gpt.components.ingest.ingest_component import get_ingestion_component
 from private_gpt.components.llm.llm_component import LLMComponent
 from private_gpt.components.node_store.node_store_component import NodeStoreComponent
 from private_gpt.components.vector_store.vector_store_component import (
@@ -25,8 +24,7 @@ import pandas as pd
 from typing import Union, List
 from langchain.docstore.document import Document
 from langchain.embeddings import HuggingFaceEmbeddings
-from private_gpt.components.ingest.ingest_component import get_ingestion_component_langchain, \
-    BaseIngestComponent, BaseIngestComponentLangchain
+from private_gpt.components.ingest.ingest_component import get_ingestion_component_langchain, BaseIngestComponentLangchain
 
 
 logger = logging.getLogger(__name__)
@@ -62,7 +60,7 @@ class IngestService:
         #     self.storage_context, self.ingest_service_context, embedding_component, settings=settings()
         # )
 
-        self.ingest_component: Union[BaseIngestComponent, BaseIngestComponentLangchain] = \
+        self.ingest_component: BaseIngestComponentLangchain = \
             get_ingestion_component_langchain(embedding_component, settings=settings())
 
     def ingest(self, file_name: str, file_data: Path) -> Union[str, list[IngestedDoc]]:
@@ -91,9 +89,9 @@ class IngestService:
                 tmp.close()
                 path_to_tmp.unlink()
 
-    def bulk_ingest(self, files: List[Document]):
+    def bulk_ingest(self, files: List[str], chunk_size: int, chunk_overlap: int):
         logger.info("Ingesting file_names=%s", [f[0] for f in files])
-        return self.ingest_component.bulk_ingest(files)
+        return self.ingest_component.bulk_ingest(files, chunk_size, chunk_overlap)
 
     def list_ingested(self) -> list[IngestedDoc]:
         ingested_docs = []

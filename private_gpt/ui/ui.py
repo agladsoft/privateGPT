@@ -31,11 +31,11 @@ THIS_DIRECTORY_RELATIVE = Path(__file__).parent.relative_to(PROJECT_ROOT_PATH)
 AVATAR_USER = THIS_DIRECTORY_RELATIVE / "icons8-человек-96.png"
 AVATAR_BOT = THIS_DIRECTORY_RELATIVE / "icons8-bot-96.png"
 
-UI_TAB_TITLE = "RusconGPT"
+UI_TAB_TITLE = "MakarGPT"
 
-SOURCES_SEPARATOR = "\n\n Sources: \n"
+SOURCES_SEPARATOR = "\n\n Документы: \n"
 
-MODES = ["DB", "Search in DB", "LLM"]
+MODES = ["DB", "LLM"]
 MAX_NEW_TOKENS: int = 1500
 LINEBREAK_TOKEN: int = 13
 SYSTEM_TOKEN: int = 1788
@@ -111,63 +111,21 @@ class PrivateGptUi:
         self.mode = MODES[0]
         self._system_prompt = self._get_default_system_prompt(self.mode)
 
-    def _get_context(self, message: str, history: list[list[str]], mode: str, limit, *_: Any) -> Any:
-
-        def build_history() -> list[ChatMessage]:
-            history_messages: list[ChatMessage] = list(
-                itertools.chain(
-                    *[
-                        [
-                            ChatMessage(content=interaction[0], role=MessageRole.USER),
-                            ChatMessage(
-                                # Remove from history content the Sources information
-                                content=interaction[1].split(SOURCES_SEPARATOR)[0] if interaction[1] else None,
-                                role=MessageRole.ASSISTANT,
-                            ),
-                        ]
-                        for interaction in history
-                    ]
-                )
-            )
-
-            # max 20 messages to try to avoid context overflow
-            return history_messages[:3]
-
-        new_message = ChatMessage(content=message, role=MessageRole.USER)
-        all_messages = [*build_history(), new_message]
-        logger.info(f"Messages {all_messages}")
-        # If a system prompt is set, add it as a system message
-        if self._system_prompt:
-            all_messages.insert(
-                0,
-                ChatMessage(
-                    content=self._system_prompt,
-                    role=MessageRole.SYSTEM,
-                ),
-            )
+    def _get_context(self, history: list[list[str]], mode: str, limit, *_: Any) -> Any:
         match mode:
             case "DB":
-                content = self._chat_service.stream_chat(
-                    messages=all_messages,
+                content = self._chat_service.retrieve(
+                    history=history,
                     use_context=True,
                     limit=limit
                 )
-                return "", history + [[message, None]], content
-
+                return content, mode
             case "LLM":
-                content = self._chat_service.stream_chat(
-                    messages=all_messages,
+                content = self._chat_service.retrieve(
+                    history=history,
                     use_context=False,
                 )
-                return "", history + [[message, None]], content
-
-            case "Search in DB":
-                response = self._chunks_service.retrieve_relevant(
-                    text=message, limit=limit, prev_next_chunks=0
-                )
-
-                sources = Source.curate_sources(response)
-                return "", history + [[message, None]], sources, "Появятся после задавания вопросов"
+                return content, mode
 
     # On initialization and on mode change, this function set the system prompt
     # to the default prompt based on the mode (and user settings).
@@ -200,26 +158,6 @@ class PrivateGptUi:
         else:
             return gr.update(placeholder=self._system_prompt, interactive=False)
 
-    # def _list_ingested_files(self) -> list[list[str]]:
-    #     files = set()
-    #     for ingested_document in self._ingest_service.list_ingested():
-    #         if ingested_document.doc_metadata is None:
-    #             # Skipping documents without metadata
-    #             continue
-    #         file_name = ingested_document.doc_metadata.get(
-    #             "file_name", "[FILE NAME MISSING]"
-    #         )
-    #         files.add(os.path.basename(file_name))
-    #     return [[row] for row in files]
-    #
-    # def delete_doc(self, documents: str):
-    #     logger.info(f"Documents is {documents}")
-    #     list_documents: list[str] = documents.strip().split("\n")
-    #     for node in self._ingest_service.list_ingested():
-    #         if node.doc_id is not None and os.path.basename(node.doc_metadata["file_name"]) in list_documents:
-    #             self._ingest_service.delete(node.doc_id)
-    #     return "", self._list_ingested_files()
-
     def _list_ingested_files(self):
         return self._ingest_service.list_ingested_langchain()
 
@@ -232,13 +170,20 @@ class PrivateGptUi:
         return "", self._list_ingested_files()
 
     @staticmethod
+    def user(message, history):
+        if history is None:
+            history = []
+        new_history = history + [[message, None]]
+        return "", new_history
+
+    @staticmethod
     def regenerate_response(history):
         """
 
         :param history:
         :return:
         """
-        return history[-1][0], history
+        return "", history
 
     @staticmethod
     def get_message_tokens(model, role: str, content: str) -> list:
@@ -272,7 +217,8 @@ class PrivateGptUi:
         :param mode:
         :return:
         """
-        if not history:
+        if not history or not history[-1][0]:
+            yield history[:-1]
             return
         model = self._chat_service.llm
         tokens = self.get_system_tokens(model)[:]
@@ -284,12 +230,12 @@ class PrivateGptUi:
 
         last_user_message = history[-1][0]
         pattern = r'<a\s+[^>]*>(.*?)</a>'
-        match = re.search(pattern, retrieved_docs)
-        result_text = match[1] if match else ""
-        retrieved_docs = re.sub(pattern, result_text, retrieved_docs)
+        files = re.findall(pattern, retrieved_docs)
+        for file in files:
+            retrieved_docs = re.sub(fr'<a\s+[^>]*>{file}</a>', file, retrieved_docs)
         if retrieved_docs and mode:
             last_user_message = f"Контекст: {retrieved_docs}\n\nИспользуя только контекст, ответь на вопрос: " \
-                                    f"{last_user_message}"
+                                f"{last_user_message}"
         message_tokens = self.get_message_tokens(model=model, role="user", content=last_user_message)
         tokens.extend(message_tokens)
 
@@ -310,6 +256,16 @@ class PrivateGptUi:
             history[-1][1] = partial_text
             yield history
 
+        if files:
+            partial_text += SOURCES_SEPARATOR
+            sources_text = "\n\n\n".join(
+                f"{index}. {source}"
+                for index, source in enumerate(files, start=1)
+            )
+            partial_text += sources_text
+            history[-1][1] = partial_text
+        yield history
+
     def _chat(self, history, context, mode):
         match mode:
             case "DB":
@@ -317,9 +273,9 @@ class PrivateGptUi:
             case "LLM":
                 yield from self.bot(history, context, False)
 
-    def _upload_file(self, files: List[tempfile.TemporaryFile]):
+    def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
         logger.debug("Loading count=%s files", len(files))
-        message = self._ingest_service.bulk_ingest([f.name for f in files])
+        message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
         return message, self._list_ingested_files()
 
     def _build_ui_blocks(self) -> gr.Blocks:
@@ -331,12 +287,10 @@ class PrivateGptUi:
         ) as blocks:
             logo_svg = f'<img src="{FAVICON_PATH}" width="48px" style="display: inline">'
             gr.Markdown(
-                f"""<h1><center>{logo_svg} Я, Макар - текстовый ассистент на основе GPT</center></h1>"""
+                f"""<h1><center>{logo_svg} Я, Макар - виртуальный ассистент Рускон</center></h1>"""
             )
 
             with gr.Tab("Чат"):
-                response: gr.State = gr.State(None)
-
                 with gr.Accordion("Параметры", open=False):
                     with gr.Tab(label="Параметры извлечения фрагментов из текста"):
                         limit = gr.Slider(
@@ -350,16 +304,16 @@ class PrivateGptUi:
                     with gr.Tab(label="Параметры нарезки"):
                         chunk_size = gr.Slider(
                             minimum=50,
-                            maximum=1000,
-                            value=512,
-                            step=50,
+                            maximum=1024,
+                            value=1024,
+                            step=128,
                             interactive=True,
                             label="Размер фрагментов",
                         )
                         chunk_overlap = gr.Slider(
                             minimum=0,
                             maximum=500,
-                            value=50,
+                            value=100,
                             step=10,
                             interactive=True,
                             label="Пересечение"
@@ -427,6 +381,12 @@ class PrivateGptUi:
                     regenerate = gr.Button(value="🔄 Повторить")
                     clear = gr.Button(value="🗑️ Очистить")
 
+                with gr.Row():
+                    gr.Markdown(
+                        "<center>Ассистент может допускать ошибки, поэтому рекомендуем проверять важную информацию. "
+                        "Ответы также не являются призывом к действию</center>"
+                    )
+
             with gr.Tab("Документы"):
                 with gr.Row():
                     with gr.Column(scale=3):
@@ -456,7 +416,7 @@ class PrivateGptUi:
 
             upload_button.upload(
                 self._upload_file,
-                inputs=[upload_button],
+                inputs=[upload_button, chunk_size, chunk_overlap],
                 outputs=[file_warning, ingested_dataset],
             )
 
@@ -469,9 +429,14 @@ class PrivateGptUi:
 
             # Pressing Enter
             submit_event = msg.submit(
+                fn=self.user,
+                inputs=[msg, chatbot],
+                outputs=[msg, chatbot],
+                queue=False,
+            ).success(
                 fn=self._get_context,
-                inputs=[msg, chatbot, mode, limit],
-                outputs=[msg, chatbot, content],
+                inputs=[chatbot, mode, limit],
+                outputs=[content, mode],
                 queue=True,
             ).success(
                 fn=self._chat,
@@ -482,9 +447,14 @@ class PrivateGptUi:
 
             # Pressing the button
             submit_click_event = submit.click(
+                fn=self.user,
+                inputs=[msg, chatbot],
+                outputs=[msg, chatbot],
+                queue=False,
+            ).success(
                 fn=self._get_context,
-                inputs=[msg, chatbot, mode, limit],
-                outputs=[msg, chatbot, content],
+                inputs=[chatbot, mode, limit],
+                outputs=[chatbot, mode],
                 queue=True,
             ).success(
                 fn=self._chat,
@@ -501,8 +471,8 @@ class PrivateGptUi:
                 queue=False,
             ).success(
                 fn=self._get_context,
-                inputs=[msg, chatbot, mode, limit],
-                outputs=[msg, chatbot, content],
+                inputs=[chatbot, mode, limit],
+                outputs=[content, mode],
                 queue=True,
             ).success(
                 fn=self._chat,
