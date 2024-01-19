@@ -7,11 +7,15 @@ ENV DEBIAN_FRONTEND=noninteractive \
     FORCE_CMAKE=1
 
 RUN apt update -y && apt upgrade -y && apt install libreoffice -y && apt install pip -y  \
-    && apt install nvidia-driver-535 -y && apt install python3.10-venv -y
+    && apt install nvidia-driver-535 -y
+
+RUN add-apt-repository ppa:deadsnakes/ppa -y && apt install python3.11 -y && apt install python3.11-venv -y
+RUN apt-get update -y
+RUN update-alternatives --install /usr/bin/python python /usr/local/bin/python3.11 1
 
 # Install poetry
 RUN pip install pipx
-RUN python3 -m pipx ensurepath
+RUN python -m pipx ensurepath
 RUN pipx install poetry
 ENV PATH="/root/.local/bin:$PATH"
 
@@ -54,6 +58,6 @@ COPY fern/ fern
 COPY *.yaml *.md ./
 COPY pyproject.toml poetry.lock ./
 
-RUN poetry run python3 setup
+RUN poetry run python setup
 
 ENTRYPOINT .venv/bin/python -m private_gpt
