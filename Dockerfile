@@ -35,7 +35,7 @@ RUN update-alternatives --set python /usr/bin/python$PYVER
 RUN python3 -V
 # Install poetry
 RUN pip install pipx
-RUN python -m pipx ensurepath
+RUN python3 -m pipx ensurepath
 RUN pipx install poetry
 ENV PATH="/root/.local/bin:$PATH"
 
@@ -78,6 +78,6 @@ COPY fern/ fern
 COPY *.yaml *.md ./
 COPY pyproject.toml poetry.lock ./
 
-RUN poetry run python setup
+RUN poetry run python3 setup
 
-ENTRYPOINT .venv/bin/python -m private_gpt
+ENTRYPOINT .venv/bin/python3 -m private_gpt
