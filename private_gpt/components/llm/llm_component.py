@@ -1,9 +1,9 @@
+import os
 import logging
-
 from injector import inject, singleton
 from llama_index.llms import MockLLM
 from llama_index.llms.base import LLM
-
+from huggingface_hub.file_download import http_get
 from private_gpt.components.llm.prompt_helper import get_prompt_style
 from private_gpt.paths import models_path
 from private_gpt.settings.settings import Settings
@@ -23,28 +23,19 @@ class LLMComponent:
         logger.info("Initializing the LLM in mode=%s", llm_mode)
         match settings.llm.mode:
             case "local":
-                from llama_index.llms import LlamaCPP
+                path = str(models_path / settings.local.llm_hf_model_file)
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                if not os.path.exists(path):
+                    with open(path, "wb") as f:
+                        http_get(
+                            f"https://huggingface.co/{settings.local.llm_hf_repo_id}/resolve/main/"
+                            f"{settings.local.llm_hf_model_file}",
+                            f
+                        )
 
-                prompt_style = get_prompt_style(settings.local.prompt_style)
-
-                # self.llm = LlamaCPP(
-                #     model_path=str(models_path / settings.local.llm_hf_model_file),
-                #     temperature=0.1,
-                #     max_new_tokens=settings.llm.max_new_tokens,
-                #     # llama2 has a context window of 4096 tokens,
-                #     # but we set it lower to allow for some wiggle room
-                #     context_window=settings.llm.context_window,
-                #     generate_kwargs={},
-                #     # All to GPU
-                #     model_kwargs={"n_gpu_layers": -1},
-                #     # transform inputs into Llama2 format
-                #     messages_to_prompt=prompt_style.messages_to_prompt,
-                #     completion_to_prompt=prompt_style.completion_to_prompt,
-                #     verbose=True,
-                # )
                 self.llm = Llama(
                     n_gpu_layers=35,
-                    model_path=str(models_path / settings.local.llm_hf_model_file),
+                    model_path=path,
                     n_ctx=settings.llm.context_window,
                     n_parts=1,
                 )
