@@ -278,6 +278,7 @@ class PrivateGptUi:
                 partial_text += sources_text
                 history[-1][1] = partial_text
             yield history
+        self.semaphore.release()
 
     def _chat(self, history, context, mode):
         match mode:
