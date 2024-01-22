@@ -225,59 +225,55 @@ class PrivateGptUi:
         :return:
         """
         print("Получили контекст. Начинается подготовка к генерации ответа")
-        while not self.semaphore.acquire(blocking=False):
-            print("Пока еще генерация ответа недоступна")
-            time.sleep(1)
-        else:
-            print("Начинается генерация ответа")
-            if not history or not history[-1][0]:
-                yield history[:-1]
-                return
-            model = self._chat_service.llm
-            tokens = self.get_system_tokens(model)[:]
-            tokens.append(LINEBREAK_TOKEN)
+        self.semaphore.acquire()
+        if not history or not history[-1][0]:
+            yield history[:-1]
+            return
+        model = self._chat_service.llm
+        tokens = self.get_system_tokens(model)[:]
+        tokens.append(LINEBREAK_TOKEN)
 
-            for user_message, bot_message in history[-4:-1]:
-                message_tokens = self.get_message_tokens(model=model, role="user", content=user_message)
-                tokens.extend(message_tokens)
-
-            last_user_message = history[-1][0]
-            pattern = r'<a\s+[^>]*>(.*?)</a>'
-            files = re.findall(pattern, retrieved_docs)
-            for file in files:
-                retrieved_docs = re.sub(fr'<a\s+[^>]*>{file}</a>', file, retrieved_docs)
-            if retrieved_docs and mode:
-                last_user_message = f"Контекст: {retrieved_docs}\n\nИспользуя только контекст, ответь на вопрос: " \
-                                    f"{last_user_message}"
-            message_tokens = self.get_message_tokens(model=model, role="user", content=last_user_message)
+        for user_message, bot_message in history[-4:-1]:
+            message_tokens = self.get_message_tokens(model=model, role="user", content=user_message)
             tokens.extend(message_tokens)
 
-            role_tokens = [model.token_bos(), BOT_TOKEN, LINEBREAK_TOKEN]
-            tokens.extend(role_tokens)
-            generator = model.generate(
-                tokens,
-                top_k=80,
-                top_p=0.9,
-                temp=0.1
-            )
+        last_user_message = history[-1][0]
+        pattern = r'<a\s+[^>]*>(.*?)</a>'
+        files = re.findall(pattern, retrieved_docs)
+        for file in files:
+            retrieved_docs = re.sub(fr'<a\s+[^>]*>{file}</a>', file, retrieved_docs)
+        if retrieved_docs and mode:
+            last_user_message = f"Контекст: {retrieved_docs}\n\nИспользуя только контекст, ответь на вопрос: " \
+                                f"{last_user_message}"
+        message_tokens = self.get_message_tokens(model=model, role="user", content=last_user_message)
+        tokens.extend(message_tokens)
 
-            partial_text = ""
-            for i, token in enumerate(generator):
-                if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
-                    break
-                partial_text += model.detokenize([token]).decode("utf-8", "ignore")
-                history[-1][1] = partial_text
-                yield history
+        role_tokens = [model.token_bos(), BOT_TOKEN, LINEBREAK_TOKEN]
+        tokens.extend(role_tokens)
+        generator = model.generate(
+            tokens,
+            top_k=80,
+            top_p=0.9,
+            temp=0.1
+        )
 
-            if files:
-                partial_text += SOURCES_SEPARATOR
-                sources_text = "\n\n\n".join(
-                    f"{index}. {source}"
-                    for index, source in enumerate(files, start=1)
-                )
-                partial_text += sources_text
-                history[-1][1] = partial_text
+        partial_text = ""
+        for i, token in enumerate(generator):
+            if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
+                break
+            partial_text += model.detokenize([token]).decode("utf-8", "ignore")
+            history[-1][1] = partial_text
             yield history
+
+        if files:
+            partial_text += SOURCES_SEPARATOR
+            sources_text = "\n\n\n".join(
+                f"{index}. {source}"
+                for index, source in enumerate(files, start=1)
+            )
+            partial_text += sources_text
+            history[-1][1] = partial_text
+        yield history
         self.semaphore.release()
 
     def _chat(self, history, context, mode):
