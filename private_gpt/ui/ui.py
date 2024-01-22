@@ -1,7 +1,9 @@
 """This file should be imported only and only if you want to run the UI locally."""
 import itertools
+import time
 import logging
 import os.path
+import threading
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, List
@@ -107,6 +109,8 @@ class PrivateGptUi:
         # Cache the UI blocks
         self._ui_block = None
 
+        self.semaphore = threading.Semaphore()
+
         # Initialize system prompt based on default mode
         self.mode = MODES[0]
         self._system_prompt = self._get_default_system_prompt(self.mode)
@@ -169,11 +173,14 @@ class PrivateGptUi:
                 self._ingest_service.delete(node.doc_id)
         return "", self._list_ingested_files()
 
-    @staticmethod
-    def user(message, history):
+    def user(self, message, history):
+        print("Обработка вопроса")
+        self.semaphore.acquire()
         if history is None:
             history = []
         new_history = history + [[message, None]]
+        self.semaphore.release()
+        print("Закончена обработка вопроса")
         return "", new_history
 
     @staticmethod
@@ -217,54 +224,60 @@ class PrivateGptUi:
         :param mode:
         :return:
         """
-        if not history or not history[-1][0]:
-            yield history[:-1]
-            return
-        model = self._chat_service.llm
-        tokens = self.get_system_tokens(model)[:]
-        tokens.append(LINEBREAK_TOKEN)
+        print("Получили контекст. Начинается подготовка к генерации ответа")
+        while not self.semaphore.acquire(blocking=False):
+            print("Пока еще генерация ответа недоступна")
+            time.sleep(1)
+        else:
+            print("Начинается генерация ответа")
+            if not history or not history[-1][0]:
+                yield history[:-1]
+                return
+            model = self._chat_service.llm
+            tokens = self.get_system_tokens(model)[:]
+            tokens.append(LINEBREAK_TOKEN)
 
-        for user_message, bot_message in history[-4:-1]:
-            message_tokens = self.get_message_tokens(model=model, role="user", content=user_message)
+            for user_message, bot_message in history[-4:-1]:
+                message_tokens = self.get_message_tokens(model=model, role="user", content=user_message)
+                tokens.extend(message_tokens)
+
+            last_user_message = history[-1][0]
+            pattern = r'<a\s+[^>]*>(.*?)</a>'
+            files = re.findall(pattern, retrieved_docs)
+            for file in files:
+                retrieved_docs = re.sub(fr'<a\s+[^>]*>{file}</a>', file, retrieved_docs)
+            if retrieved_docs and mode:
+                last_user_message = f"Контекст: {retrieved_docs}\n\nИспользуя только контекст, ответь на вопрос: " \
+                                    f"{last_user_message}"
+            message_tokens = self.get_message_tokens(model=model, role="user", content=last_user_message)
             tokens.extend(message_tokens)
 
-        last_user_message = history[-1][0]
-        pattern = r'<a\s+[^>]*>(.*?)</a>'
-        files = re.findall(pattern, retrieved_docs)
-        for file in files:
-            retrieved_docs = re.sub(fr'<a\s+[^>]*>{file}</a>', file, retrieved_docs)
-        if retrieved_docs and mode:
-            last_user_message = f"Контекст: {retrieved_docs}\n\nИспользуя только контекст, ответь на вопрос: " \
-                                f"{last_user_message}"
-        message_tokens = self.get_message_tokens(model=model, role="user", content=last_user_message)
-        tokens.extend(message_tokens)
-
-        role_tokens = [model.token_bos(), BOT_TOKEN, LINEBREAK_TOKEN]
-        tokens.extend(role_tokens)
-        generator = model.generate(
-            tokens,
-            top_k=80,
-            top_p=0.9,
-            temp=0.1
-        )
-
-        partial_text = ""
-        for i, token in enumerate(generator):
-            if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
-                break
-            partial_text += model.detokenize([token]).decode("utf-8", "ignore")
-            history[-1][1] = partial_text
-            yield history
-
-        if files:
-            partial_text += SOURCES_SEPARATOR
-            sources_text = "\n\n\n".join(
-                f"{index}. {source}"
-                for index, source in enumerate(files, start=1)
+            role_tokens = [model.token_bos(), BOT_TOKEN, LINEBREAK_TOKEN]
+            tokens.extend(role_tokens)
+            generator = model.generate(
+                tokens,
+                top_k=80,
+                top_p=0.9,
+                temp=0.1
             )
-            partial_text += sources_text
-            history[-1][1] = partial_text
-        yield history
+
+            partial_text = ""
+            for i, token in enumerate(generator):
+                if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
+                    break
+                partial_text += model.detokenize([token]).decode("utf-8", "ignore")
+                history[-1][1] = partial_text
+                yield history
+
+            if files:
+                partial_text += SOURCES_SEPARATOR
+                sources_text = "\n\n\n".join(
+                    f"{index}. {source}"
+                    for index, source in enumerate(files, start=1)
+                )
+                partial_text += sources_text
+                history[-1][1] = partial_text
+            yield history
 
     def _chat(self, history, context, mode):
         match mode:
