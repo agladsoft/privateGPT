@@ -10,6 +10,13 @@ services:
       - ./upload_files/:/home/worker/app/upload_files/
     ports:
       - "8001:8080"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
     environment:
       PORT: 8080
       PGPT_PROFILES: docker
