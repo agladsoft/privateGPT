@@ -174,13 +174,13 @@ class PrivateGptUi:
         return "", self._list_ingested_files()
 
     def user(self, message, history):
-        print("Обработка вопроса")
+        logger.info("Обработка вопроса")
         self.semaphore.acquire()
         if history is None:
             history = []
         new_history = history + [[message, None]]
         self.semaphore.release()
-        print("Закончена обработка вопроса")
+        logger.info("Закончена обработка вопроса")
         return "", new_history
 
     @staticmethod
@@ -224,7 +224,7 @@ class PrivateGptUi:
         :param mode:
         :return:
         """
-        print("Получили контекст. Начинается подготовка к генерации ответа")
+        logger.info("Получили контекст. Начинается подготовка к генерации ответа")
         self.semaphore.acquire()
         if not history or not history[-1][0]:
             yield history[:-1]
