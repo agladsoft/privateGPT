@@ -448,12 +448,12 @@ class PrivateGptUi:
                 fn=self._get_context,
                 inputs=[chatbot, mode, limit],
                 outputs=[content, mode],
-                queue=True,
+                queue=False,
             ).success(
                 fn=self._chat,
                 inputs=[chatbot, content, mode],
                 outputs=chatbot,
-                queue=True,
+                queue=False,
             )
 
             # Pressing the button
@@ -466,12 +466,12 @@ class PrivateGptUi:
                 fn=self._get_context,
                 inputs=[chatbot, mode, limit],
                 outputs=[content, mode],
-                queue=True,
+                queue=False,
             ).success(
                 fn=self._chat,
                 inputs=[chatbot, content, mode],
                 outputs=chatbot,
-                queue=True,
+                queue=False,
             )
 
             # Regenerate
@@ -484,12 +484,12 @@ class PrivateGptUi:
                 fn=self._get_context,
                 inputs=[chatbot, mode, limit],
                 outputs=[content, mode],
-                queue=True,
+                queue=False,
             ).success(
                 fn=self._chat,
                 inputs=[chatbot, content, mode],
                 outputs=chatbot,
-                queue=True,
+                queue=False,
             )
 
             # Stop generation
