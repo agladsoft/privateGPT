@@ -535,7 +535,7 @@ class PrivateGptUi:
 
     def mount_in_app(self, app: FastAPI, path: str) -> None:
         blocks = self.get_ui_blocks()
-        blocks.queue()
+        blocks.queue(default_concurrency_limit=COUNT_THREAD)
         logger.info("Mounting the gradio UI, at path=%s", path)
         gr.mount_gradio_app(app, blocks, path=path)
 
