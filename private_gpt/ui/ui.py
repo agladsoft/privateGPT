@@ -110,7 +110,7 @@ class PrivateGptUi:
         # Cache the UI blocks
         self._ui_block = None
 
-        self.semaphore = threading.Semaphore(COUNT_THREAD)
+        # self.semaphore = threading.Semaphore(COUNT_THREAD)
 
         # Initialize system prompt based on default mode
         self.mode = MODES[0]
@@ -176,11 +176,11 @@ class PrivateGptUi:
 
     def user(self, message, history):
         logger.info("Обработка вопроса")
-        self.semaphore.acquire()
+        # self.semaphore.acquire()
         if history is None:
             history = []
         new_history = history + [[message, None]]
-        self.semaphore.release()
+        # self.semaphore.release()
         logger.info("Закончена обработка вопроса")
         return "", new_history
 
@@ -226,7 +226,7 @@ class PrivateGptUi:
         :return:
         """
         logger.info("Получили контекст. Начинается подготовка к генерации ответа")
-        self.semaphore.acquire()
+        # self.semaphore.acquire()
         if not history or not history[-1][0]:
             yield history[:-1]
             return
@@ -275,7 +275,7 @@ class PrivateGptUi:
             partial_text += sources_text
             history[-1][1] = partial_text
         yield history
-        self.semaphore.release()
+        # self.semaphore.release()
 
     def _chat(self, history, context, mode):
         match mode:
