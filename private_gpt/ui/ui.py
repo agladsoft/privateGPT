@@ -257,7 +257,7 @@ class PrivateGptUi:
             pass
         elif len(self.list_models) != COUNT_THREAD and self.list_models:
             model = Llama(
-                    n_gpu_layers=35,
+                    n_gpu_layers=15,
                     model_path=path,
                     n_ctx=settings().llm.context_window,
                     n_parts=1,
