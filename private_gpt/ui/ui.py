@@ -443,17 +443,17 @@ class PrivateGptUi:
                 fn=self.user,
                 inputs=[msg, chatbot],
                 outputs=[msg, chatbot],
-                concurrency_limit=COUNT_THREAD
+                queue=False
             ).success(
                 fn=self._get_context,
                 inputs=[chatbot, mode, limit],
                 outputs=[content, mode],
-                concurrency_limit=COUNT_THREAD
+                queue=True
             ).success(
                 fn=self._chat,
                 inputs=[chatbot, content, mode],
                 outputs=chatbot,
-                concurrency_limit=COUNT_THREAD
+                queue=True
             )
 
             # Pressing the button
@@ -461,17 +461,17 @@ class PrivateGptUi:
                 fn=self.user,
                 inputs=[msg, chatbot],
                 outputs=[msg, chatbot],
-                concurrency_limit=COUNT_THREAD
+                queue=False
             ).success(
                 fn=self._get_context,
                 inputs=[chatbot, mode, limit],
                 outputs=[content, mode],
-                concurrency_limit=COUNT_THREAD
+                queue=True
             ).success(
                 fn=self._chat,
                 inputs=[chatbot, content, mode],
                 outputs=chatbot,
-                concurrency_limit=COUNT_THREAD,
+                queue=True
             )
 
             # Regenerate
@@ -479,17 +479,17 @@ class PrivateGptUi:
                 fn=self.regenerate_response,
                 inputs=[chatbot],
                 outputs=[msg, chatbot],
-                concurrency_limit=COUNT_THREAD
+                queue=False
             ).success(
                 fn=self._get_context,
                 inputs=[chatbot, mode, limit],
                 outputs=[content, mode],
-                concurrency_limit=COUNT_THREAD
+                queue=True
             ).success(
                 fn=self._chat,
                 inputs=[chatbot, content, mode],
                 outputs=chatbot,
-                concurrency_limit=COUNT_THREAD
+                queue=True
             )
 
             # Stop generation
