@@ -43,6 +43,7 @@ LINEBREAK_TOKEN: int = 13
 SYSTEM_TOKEN: int = 1788
 USER_TOKEN: int = 1404
 BOT_TOKEN: int = 9225
+COUNT_THREAD = 2
 
 ROLE_TOKENS: dict = {
     "user": USER_TOKEN,
@@ -109,7 +110,7 @@ class PrivateGptUi:
         # Cache the UI blocks
         self._ui_block = None
 
-        self.semaphore = threading.Semaphore(2)
+        self.semaphore = threading.Semaphore(COUNT_THREAD)
 
         # Initialize system prompt based on default mode
         self.mode = MODES[0]
@@ -520,5 +521,5 @@ class PrivateGptUi:
 if __name__ == "__main__":
     ui = global_injector.get(PrivateGptUi)
     _blocks = ui.get_ui_blocks()
-    _blocks.queue(default_concurrency_limit=2)
+    _blocks.queue(default_concurrency_limit=COUNT_THREAD)
     _blocks.launch(debug=False, show_api=False)
