@@ -264,7 +264,7 @@ class PrivateGptUi:
             while len(self.list_models) == COUNT_THREAD:
                 logger.info("Все модели заняты")
             model = Llama(
-                n_gpu_layers=35,
+                n_gpu_layers=15,
                 model_path=path,
                 n_ctx=settings().llm.context_window,
                 n_parts=1,
