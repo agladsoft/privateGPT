@@ -177,11 +177,9 @@ class PrivateGptUi:
 
     def user(self, message, history):
         logger.info("Обработка вопроса")
-        # self.semaphore.acquire()
         if history is None:
             history = []
         new_history = history + [[message, None]]
-        # self.semaphore.release()
         logger.info("Закончена обработка вопроса")
         return "", new_history
 
