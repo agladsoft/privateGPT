@@ -7,6 +7,7 @@ import threading
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, List
+from llama_cpp import Llama
 
 import gradio as gr  # type: ignore
 from fastapi import FastAPI
@@ -14,6 +15,7 @@ from gradio.themes.utils.colors import slate  # type: ignore
 from injector import inject, singleton
 from llama_index.llms import ChatMessage, ChatResponse, MessageRole
 from pydantic import BaseModel
+from private_gpt.paths import models_path
 
 from private_gpt.constants import PROJECT_ROOT_PATH
 from private_gpt.di import global_injector
@@ -251,6 +253,29 @@ class PrivateGptUi:
 
         role_tokens = [model.token_bos(), BOT_TOKEN, LINEBREAK_TOKEN]
         tokens.extend(role_tokens)
+        path = str(models_path / settings().local.llm_hf_model_file)
+
+        if not self.list_models:
+            self.list_models.append(model)
+        elif len(self.list_models) != COUNT_THREAD and self.list_models:
+            model = Llama(
+                    n_gpu_layers=35,
+                    model_path=path,
+                    n_ctx=settings().llm.context_window,
+                    n_parts=1,
+                )
+            self.list_models.append(model)
+        elif len(self.list_models) == COUNT_THREAD:
+            while len(self.list_models) == COUNT_THREAD:
+                logger.info("Все модели заняты")
+            model = Llama(
+                n_gpu_layers=35,
+                model_path=path,
+                n_ctx=settings().llm.context_window,
+                n_parts=1,
+            )
+            self.list_models.append(model)
+
         generator = model.generate(
             tokens,
             top_k=80,
