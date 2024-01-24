@@ -112,8 +112,6 @@ class PrivateGptUi:
         # Cache the UI blocks
         self._ui_block = None
 
-        # self.semaphore = threading.Semaphore(COUNT_THREAD)
-
         # Initialize system prompt based on default mode
         self.mode = MODES[0]
         self._system_prompt = self._get_default_system_prompt(self.mode)
@@ -228,8 +226,6 @@ class PrivateGptUi:
         :param mode:
         :return:
         """
-        logger.info("Получили контекст. Начинается подготовка к генерации ответа")
-        # self.semaphore.acquire()
         if not history or not history[-1][0]:
             yield history[:-1]
             return
@@ -254,6 +250,7 @@ class PrivateGptUi:
 
         role_tokens = [model.token_bos(), BOT_TOKEN, LINEBREAK_TOKEN]
         tokens.extend(role_tokens)
+        logger.info("Получили контекст. Начинается подготовка к генерации ответа")
         path = str(models_path / settings().local.llm_hf_model_file)
 
         if not self.list_models:
@@ -301,7 +298,6 @@ class PrivateGptUi:
             history[-1][1] = partial_text
         yield history
         self.list_models.pop(-1)
-        # self.semaphore.release()
 
     def _chat(self, history, context, mode):
         match mode:
