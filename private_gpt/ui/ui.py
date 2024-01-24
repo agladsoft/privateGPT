@@ -117,6 +117,7 @@ class PrivateGptUi:
         # Initialize system prompt based on default mode
         self.mode = MODES[0]
         self._system_prompt = self._get_default_system_prompt(self.mode)
+        self.list_models = []
 
     def _get_context(self, history: list[list[str]], mode: str, limit, *_: Any):
         match mode:
@@ -256,7 +257,7 @@ class PrivateGptUi:
         path = str(models_path / settings().local.llm_hf_model_file)
 
         if not self.list_models:
-            self.list_models.append(model)
+            pass
         elif len(self.list_models) != COUNT_THREAD and self.list_models:
             model = Llama(
                     n_gpu_layers=35,
@@ -264,7 +265,6 @@ class PrivateGptUi:
                     n_ctx=settings().llm.context_window,
                     n_parts=1,
                 )
-            self.list_models.append(model)
         elif len(self.list_models) == COUNT_THREAD:
             while len(self.list_models) == COUNT_THREAD:
                 logger.info("Все модели заняты")
@@ -274,7 +274,7 @@ class PrivateGptUi:
                 n_ctx=settings().llm.context_window,
                 n_parts=1,
             )
-            self.list_models.append(model)
+        self.list_models.append(model)
 
         generator = model.generate(
             tokens,
@@ -300,6 +300,7 @@ class PrivateGptUi:
             partial_text += sources_text
             history[-1][1] = partial_text
         yield history
+        self.list_models.pop(-1)
         # self.semaphore.release()
 
     def _chat(self, history, context, mode):
