@@ -109,7 +109,7 @@ class PrivateGptUi:
         # Cache the UI blocks
         self._ui_block = None
 
-        self.semaphore = threading.Semaphore()
+        self.semaphore = threading.Semaphore(2)
 
         # Initialize system prompt based on default mode
         self.mode = MODES[0]
