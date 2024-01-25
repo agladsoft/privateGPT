@@ -83,6 +83,4 @@ RUN echo "*   hard    nproc   1000000" >> /etc/security/limits.conf
 RUN echo "*   -    nofile  1048576" >> /etc/security/limits.conf
 RUN echo "* - memlock unlimited" >> /etc/security/limits.conf
 
-RUN reboot
-
 ENTRYPOINT .venv/bin/python3 -m private_gpt
