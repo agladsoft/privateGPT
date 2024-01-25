@@ -8,6 +8,7 @@ services:
       - ./local_data/:/home/worker/app/local_data/
       - ./models/:/home/worker/app/models/
       - ./upload_files/:/home/worker/app/upload_files/
+      - ./private_gpt/:/home/worker/app/private_gpt/
     ports:
       - "8001:8080"
     deploy:
