@@ -105,7 +105,8 @@ class ChatService:
         self,
         history,
         use_context: bool = False,
-        limit: int = 2
+        limit: int = 2,
+        uid: str = None
     ) -> str:
         if not use_context or not history or not history[-1][0]:
             return "Появятся после задавания вопросов"
@@ -121,7 +122,7 @@ class ChatService:
             else:
                 data[document] = f"Score: {round(doc[1], 2)}, Text: {doc[0].page_content}"
         list_data: list = [f"{doc}\n\n{text}" for doc, text in data.items()]
-        logger.info("Получили контекст из базы")
+        logger.info(f"Получили контекст из базы [uid - {uid}]")
         return "\n\n\n".join(list_data) if list_data else "Документов в базе нету"
 
     def _chat_engine(

@@ -1,10 +1,6 @@
 """This file should be imported only and only if you want to run the UI locally."""
-import itertools
-import time
 import logging
 import os.path
-import threading
-from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, List
 
@@ -12,7 +8,6 @@ import gradio as gr  # type: ignore
 from fastapi import FastAPI
 from gradio.themes.utils.colors import slate  # type: ignore
 from injector import inject, singleton
-from llama_index.llms import ChatMessage, ChatResponse, MessageRole
 from pydantic import BaseModel
 
 from private_gpt.constants import PROJECT_ROOT_PATH
@@ -24,6 +19,7 @@ from private_gpt.settings.settings import settings
 from private_gpt.ui.images import FAVICON_PATH
 
 import re
+import uuid
 import tempfile
 
 logger = logging.getLogger(__name__)
@@ -109,25 +105,25 @@ class PrivateGptUi:
         # Cache the UI blocks
         self._ui_block = None
 
-        self.semaphore = threading.Semaphore()
-
         # Initialize system prompt based on default mode
         self.mode = MODES[0]
         self._system_prompt = self._get_default_system_prompt(self.mode)
 
-    def _get_context(self, history: list[list[str]], mode: str, limit, *_: Any):
+    def _get_context(self, history: list[list[str]], mode: str, limit, uid, *_: Any):
         match mode:
             case "DB":
                 content = self._chat_service.retrieve(
                     history=history,
                     use_context=True,
-                    limit=limit
+                    limit=limit,
+                    uid=uid
                 )
                 return content, mode
             case "LLM":
                 content = self._chat_service.retrieve(
                     history=history,
                     use_context=False,
+                    uid=uid
                 )
                 return content, mode
 
@@ -173,14 +169,14 @@ class PrivateGptUi:
                 self._ingest_service.delete(node.doc_id)
         return "", self._list_ingested_files()
 
-    def user(self, message, history):
-        logger.info("Обработка вопроса")
-        self.semaphore.acquire()
+    @staticmethod
+    def user(message, history):
+        uid = uuid.uuid4()
+        logger.info(f"Обработка вопроса [uid - {uid}]")
         if history is None:
             history = []
         new_history = history + [[message, None]]
-        self.semaphore.release()
-        return "", new_history
+        return "", new_history, uid
 
     @staticmethod
     def regenerate_response(history):
@@ -189,8 +185,9 @@ class PrivateGptUi:
         :param history:
         :return:
         """
-        logger.info("Обработка вопроса")
-        return "", history
+        uid = uuid.uuid4()
+        logger.info(f"Обработка вопроса [uid - {uid}]")
+        return "", history, uid
 
     @staticmethod
     def get_message_tokens(model, role: str, content: str) -> list:
@@ -216,16 +213,17 @@ class PrivateGptUi:
         system_message: dict = {"role": "system", "content": self._system_prompt}
         return self.get_message_tokens(model, **system_message)
 
-    def bot(self, history, retrieved_docs, mode):
+    def bot(self, history, retrieved_docs, mode, uid):
         """
 
         :param history:
         :param retrieved_docs:
         :param mode:
+        :param uid:
         :return:
         """
-        logger.info("Подготовка к генерации ответа. Формирование полного вопроса на основе контекста и истории")
-        self.semaphore.acquire()
+        logger.info(f"Подготовка к генерации ответа. Формирование полного вопроса на основе контекста и истории "
+                    f"[uid - {uid}]")
         if not history or not history[-1][0]:
             yield history[:-1]
             return
@@ -247,7 +245,7 @@ class PrivateGptUi:
                                 f"{last_user_message}"
         message_tokens = self.get_message_tokens(model=model, role="user", content=last_user_message)
         tokens.extend(message_tokens)
-        logger.info("Вопрос был полностью сформирован")
+        logger.info(f"Вопрос был полностью сформирован [uid - {uid}]")
 
         role_tokens = [model.token_bos(), BOT_TOKEN, LINEBREAK_TOKEN]
         tokens.extend(role_tokens)
@@ -259,18 +257,14 @@ class PrivateGptUi:
         )
 
         partial_text = ""
-        logger.info("Начинается генерация ответа")
-        try:
-            for i, token in enumerate(generator):
-                if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
-                    break
-                partial_text += model.detokenize([token]).decode("utf-8", "ignore")
-                history[-1][1] = partial_text
-                yield history
-        except Exception as ex:
-            logger.info(ex)
-            self.semaphore.release()
-        logger.info("Генерация ответа закончена")
+        logger.info(f"Начинается генерация ответа [uid - {uid}]")
+        for i, token in enumerate(generator):
+            if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
+                break
+            partial_text += model.detokenize([token]).decode("utf-8", "ignore")
+            history[-1][1] = partial_text
+            yield history
+        logger.info(f"Генерация ответа закончена [uid - {uid}]")
         if files:
             partial_text += SOURCES_SEPARATOR
             sources_text = "\n\n\n".join(
@@ -280,14 +274,13 @@ class PrivateGptUi:
             partial_text += sources_text
             history[-1][1] = partial_text
         yield history
-        self.semaphore.release()
 
-    def _chat(self, history, context, mode):
+    def _chat(self, history, context, mode, uid):
         match mode:
             case "DB":
-                yield from self.bot(history, context, True)
+                yield from self.bot(history, context, True, uid)
             case "LLM":
-                yield from self.bot(history, context, False)
+                yield from self.bot(history, context, False, uid)
 
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
         logger.debug("Loading count=%s files", len(files))
@@ -305,6 +298,7 @@ class PrivateGptUi:
             gr.Markdown(
                 f"""<h1><center>{logo_svg} Я, Макар - виртуальный ассистент Рускон</center></h1>"""
             )
+            uid = gr.State()
 
             with gr.Tab("Чат"):
                 with gr.Accordion("Параметры", open=False):
@@ -447,7 +441,7 @@ class PrivateGptUi:
             submit_event = msg.submit(
                 fn=self.user,
                 inputs=[msg, chatbot],
-                outputs=[msg, chatbot],
+                outputs=[msg, chatbot, uid],
                 queue=False,
             ).success(
                 fn=self._get_context,
@@ -456,7 +450,7 @@ class PrivateGptUi:
                 queue=True,
             ).success(
                 fn=self._chat,
-                inputs=[chatbot, content, mode],
+                inputs=[chatbot, content, mode, uid],
                 outputs=chatbot,
                 queue=True,
             )
@@ -465,7 +459,7 @@ class PrivateGptUi:
             submit_click_event = submit.click(
                 fn=self.user,
                 inputs=[msg, chatbot],
-                outputs=[msg, chatbot],
+                outputs=[msg, chatbot, uid],
                 queue=False,
             ).success(
                 fn=self._get_context,
@@ -474,7 +468,7 @@ class PrivateGptUi:
                 queue=True,
             ).success(
                 fn=self._chat,
-                inputs=[chatbot, content, mode],
+                inputs=[chatbot, content, mode, uid],
                 outputs=chatbot,
                 queue=True,
             )
@@ -483,7 +477,7 @@ class PrivateGptUi:
             regenerate_click_event = regenerate.click(
                 fn=self.regenerate_response,
                 inputs=[chatbot],
-                outputs=[msg, chatbot],
+                outputs=[msg, chatbot, uid],
                 queue=False,
             ).success(
                 fn=self._get_context,
@@ -492,7 +486,7 @@ class PrivateGptUi:
                 queue=True,
             ).success(
                 fn=self._chat,
-                inputs=[chatbot, content, mode],
+                inputs=[chatbot, content, mode, uid],
                 outputs=chatbot,
                 queue=True,
             )
