@@ -5,7 +5,8 @@ FROM nvidia/cuda:12.2.2-devel-ubuntu22.04 as base
 ENV DEBIAN_FRONTEND=noninteractive \
     CMAKE_ARGS="-DLLAMA_CUBLAS=ON" \
     FORCE_CMAKE=1 \
-    TZ=Europe/Minsk
+    TZ=Europe/Minsk \
+    DOCKER_BUILDKIT=1
 
 RUN apt update -y && apt upgrade -y && apt install libreoffice -y && apt install pip -y  \
     && apt install nvidia-driver-535 -y
