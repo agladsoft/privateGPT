@@ -260,12 +260,16 @@ class PrivateGptUi:
 
         partial_text = ""
         logger.info("Начинается генерация ответа")
-        for i, token in enumerate(generator):
-            if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
-                break
-            partial_text += model.detokenize([token]).decode("utf-8", "ignore")
-            history[-1][1] = partial_text
-            yield history
+        try:
+            for i, token in enumerate(generator):
+                if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
+                    break
+                partial_text += model.detokenize([token]).decode("utf-8", "ignore")
+                history[-1][1] = partial_text
+                yield history
+        except Exception as ex:
+            logger.info(ex)
+            self.semaphore.release()
         logger.info("Генерация ответа закончена")
         if files:
             partial_text += SOURCES_SEPARATOR
