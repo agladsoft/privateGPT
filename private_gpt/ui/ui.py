@@ -273,7 +273,7 @@ class PrivateGptUi:
                 for index, source in enumerate(files, start=1)
             )
             partial_text += sources_text
-            if scores and scores[0] > 2:
+            if scores and scores[0] > 4:
                 partial_text += "\n\nP.S. Скорее всего модель отвечает не согласно контексту. " \
                                 "Рекомендуем проверить контекст и ответ"
             history[-1][1] = partial_text
