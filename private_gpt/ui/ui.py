@@ -275,7 +275,7 @@ class PrivateGptUi:
             partial_text += sources_text
             if scores and scores[0] > 4:
                 partial_text += f"\n\nP.S. Скорее всего модель отвечает не согласно контексту. " \
-                                f"Рекомендуем проверить контекст и ответ или переключить на режим {MODES[1]}"
+                                f"Рекомендуем проверить контекст и ответ или переключиться на режим {MODES[1]}"
             history[-1][1] = partial_text
         yield history
 
