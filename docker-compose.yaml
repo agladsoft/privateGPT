@@ -5,7 +5,9 @@ services:
     build: .
     restart: always
     ulimits:
-      memlock: 64000000000
+      memlock:
+        soft: -1
+        hard: -1
     volumes:
       - ./local_data/:/home/worker/app/local_data/
       - ./models/:/home/worker/app/models/
