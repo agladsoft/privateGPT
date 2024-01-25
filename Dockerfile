@@ -78,4 +78,6 @@ COPY fern/ fern
 COPY *.yaml *.md ./
 COPY pyproject.toml poetry.lock ./
 
+RUN ulimit -l unlimited
+
 ENTRYPOINT .venv/bin/python3 -m private_gpt
