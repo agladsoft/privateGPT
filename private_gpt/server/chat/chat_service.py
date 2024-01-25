@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Tuple, Union
+from typing import Tuple, Union, List, Any
 from dataclasses import dataclass
 
 from private_gpt.constants import PROJECT_ROOT_PATH
@@ -107,23 +107,28 @@ class ChatService:
         use_context: bool = False,
         limit: int = 2,
         uid: str = None
-    ) -> str:
+    ) -> Tuple[str, list]:
         if not use_context or not history or not history[-1][0]:
-            return "Появятся после задавания вопросов"
+            return "Появятся после задавания вопросов", []
         last_user_message = history[-1][0]
         docs = self.index.similarity_search_with_score(last_user_message, limit)
+        scores: list = []
         data: dict = {}
         for doc in docs:
             url = f"""<a href="file/{doc[0].metadata["source"]}" target="_blank" 
                 rel="noopener noreferrer">{os.path.basename(doc[0].metadata["source"])}</a>"""
             document: str = f'Документ - {url} ↓'
+            score: float = round(doc[1], 2)
+            scores.append(score)
             if document in data:
-                data[document] += "\n\n" + f"Score: {round(doc[1], 2)}, Text: {doc[0].page_content}"
+                data[document] += "\n\n" + f"Score: {score}, Text: {doc[0].page_content}"
             else:
-                data[document] = f"Score: {round(doc[1], 2)}, Text: {doc[0].page_content}"
+                data[document] = f"Score: {score}, Text: {doc[0].page_content}"
         list_data: list = [f"{doc}\n\n{text}" for doc, text in data.items()]
         logger.info(f"Получили контекст из базы [uid - {uid}]")
-        return "\n\n\n".join(list_data) if list_data else "Документов в базе нету"
+        if not list_data:
+            return "Документов в базе нету", scores
+        return "\n\n\n".join(list_data), scores
 
     def _chat_engine(
         self,

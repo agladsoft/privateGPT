@@ -112,20 +112,20 @@ class PrivateGptUi:
     def _get_context(self, history: list[list[str]], mode: str, limit, uid, *_: Any):
         match mode:
             case "DB":
-                content = self._chat_service.retrieve(
+                content, scores = self._chat_service.retrieve(
                     history=history,
                     use_context=True,
                     limit=limit,
                     uid=uid
                 )
-                return content, mode
+                return content, mode, scores
             case "LLM":
-                content = self._chat_service.retrieve(
+                content, scores = self._chat_service.retrieve(
                     history=history,
                     use_context=False,
                     uid=uid
                 )
-                return content, mode
+                return content, mode, scores
 
     # On initialization and on mode change, this function set the system prompt
     # to the default prompt based on the mode (and user settings).
@@ -213,13 +213,14 @@ class PrivateGptUi:
         system_message: dict = {"role": "system", "content": self._system_prompt}
         return self.get_message_tokens(model, **system_message)
 
-    def bot(self, history, retrieved_docs, mode, uid):
+    def bot(self, history, retrieved_docs, mode, uid, scores):
         """
 
         :param history:
         :param retrieved_docs:
         :param mode:
         :param uid:
+        :param scores:
         :return:
         """
         logger.info(f"Подготовка к генерации ответа. Формирование полного вопроса на основе контекста и истории "
@@ -272,15 +273,18 @@ class PrivateGptUi:
                 for index, source in enumerate(files, start=1)
             )
             partial_text += sources_text
+            if scores and scores[0] > 2:
+                partial_text += "\n\nP.S. Скорее всего модель отвечает не согласно контексту. " \
+                                "Рекомендуем проверить контекст и ответ"
             history[-1][1] = partial_text
         yield history
 
-    def _chat(self, history, context, mode, uid):
+    def _chat(self, history, context, mode, uid, scores):
         match mode:
             case "DB":
-                yield from self.bot(history, context, True, uid)
+                yield from self.bot(history, context, True, uid, scores)
             case "LLM":
-                yield from self.bot(history, context, False, uid)
+                yield from self.bot(history, context, False, uid, scores)
 
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
         logger.debug("Loading count=%s files", len(files))
@@ -299,6 +303,7 @@ class PrivateGptUi:
                 f"""<h1><center>{logo_svg} Я, Макар - виртуальный ассистент Рускон</center></h1>"""
             )
             uid = gr.State(None)
+            scores = gr.State(None)
 
             with gr.Tab("Чат"):
                 with gr.Accordion("Параметры", open=False):
@@ -446,11 +451,11 @@ class PrivateGptUi:
             ).success(
                 fn=self._get_context,
                 inputs=[chatbot, mode, limit, uid],
-                outputs=[content, mode],
+                outputs=[content, mode, scores],
                 queue=True,
             ).success(
                 fn=self._chat,
-                inputs=[chatbot, content, mode, uid],
+                inputs=[chatbot, content, mode, uid, scores],
                 outputs=chatbot,
                 queue=True,
             )
@@ -464,11 +469,11 @@ class PrivateGptUi:
             ).success(
                 fn=self._get_context,
                 inputs=[chatbot, mode, limit, uid],
-                outputs=[content, mode],
+                outputs=[content, mode, scores],
                 queue=True,
             ).success(
                 fn=self._chat,
-                inputs=[chatbot, content, mode, uid],
+                inputs=[chatbot, content, mode, uid, scores],
                 outputs=chatbot,
                 queue=True,
             )
@@ -482,11 +487,11 @@ class PrivateGptUi:
             ).success(
                 fn=self._get_context,
                 inputs=[chatbot, mode, limit, uid],
-                outputs=[content, mode],
+                outputs=[content, mode, scores],
                 queue=True,
             ).success(
                 fn=self._chat,
-                inputs=[chatbot, content, mode, uid],
+                inputs=[chatbot, content, mode, uid, scores],
                 outputs=chatbot,
                 queue=True,
             )
