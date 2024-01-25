@@ -78,9 +78,4 @@ COPY fern/ fern
 COPY *.yaml *.md ./
 COPY pyproject.toml poetry.lock ./
 
-RUN echo "*   soft    nproc   65000" >> /etc/security/limits.conf
-RUN echo "*   hard    nproc   1000000" >> /etc/security/limits.conf
-RUN echo "*   -    nofile  1048576" >> /etc/security/limits.conf
-RUN echo "* - memlock unlimited" >> /etc/security/limits.conf
-ENV DOCKER_BUILDKIT=1
 ENTRYPOINT .venv/bin/python3 -m private_gpt

@@ -4,6 +4,8 @@ services:
     container_name: private_gpt
     build: .
     restart: always
+    ulimits:
+      memlock: unlimited
     volumes:
       - ./local_data/:/home/worker/app/local_data/
       - ./models/:/home/worker/app/models/
