@@ -34,7 +34,7 @@ class LLMComponent:
                         )
 
                 self.llm = Llama(
-                    n_gpu_layers=30,
+                    n_gpu_layers=35,
                     model_path=path,
                     n_ctx=settings.llm.context_window,
                     n_parts=1,
