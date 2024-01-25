@@ -189,6 +189,7 @@ class PrivateGptUi:
         :param history:
         :return:
         """
+        logger.info("Обработка вопроса")
         return "", history
 
     @staticmethod
