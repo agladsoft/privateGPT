@@ -445,7 +445,7 @@ class PrivateGptUi:
                 queue=False,
             ).success(
                 fn=self._get_context,
-                inputs=[chatbot, mode, limit],
+                inputs=[chatbot, mode, limit, uid],
                 outputs=[content, mode],
                 queue=True,
             ).success(
@@ -463,7 +463,7 @@ class PrivateGptUi:
                 queue=False,
             ).success(
                 fn=self._get_context,
-                inputs=[chatbot, mode, limit],
+                inputs=[chatbot, mode, limit, uid],
                 outputs=[content, mode],
                 queue=True,
             ).success(
@@ -481,7 +481,7 @@ class PrivateGptUi:
                 queue=False,
             ).success(
                 fn=self._get_context,
-                inputs=[chatbot, mode, limit],
+                inputs=[chatbot, mode, limit, uid],
                 outputs=[content, mode],
                 queue=True,
             ).success(
