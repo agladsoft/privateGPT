@@ -38,6 +38,7 @@ class LLMComponent:
                     model_path=path,
                     n_ctx=settings.llm.context_window,
                     n_parts=1,
+                    use_mlock=True
                 )
 
             # case "sagemaker":
