@@ -180,7 +180,6 @@ class PrivateGptUi:
             history = []
         new_history = history + [[message, None]]
         self.semaphore.release()
-        logger.info("Закончена обработка вопроса")
         return "", new_history
 
     @staticmethod
@@ -224,7 +223,7 @@ class PrivateGptUi:
         :param mode:
         :return:
         """
-        logger.info("Получили контекст. Начинается подготовка к генерации ответа")
+        logger.info("Подготовка к генерации ответа. Формирование полного вопроса на основе контекста и истории")
         self.semaphore.acquire()
         if not history or not history[-1][0]:
             yield history[:-1]
@@ -247,6 +246,7 @@ class PrivateGptUi:
                                 f"{last_user_message}"
         message_tokens = self.get_message_tokens(model=model, role="user", content=last_user_message)
         tokens.extend(message_tokens)
+        logger.info("Вопрос был полностью сформирован")
 
         role_tokens = [model.token_bos(), BOT_TOKEN, LINEBREAK_TOKEN]
         tokens.extend(role_tokens)
@@ -258,13 +258,14 @@ class PrivateGptUi:
         )
 
         partial_text = ""
+        logger.info("Начинается генерация ответа")
         for i, token in enumerate(generator):
             if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
                 break
             partial_text += model.detokenize([token]).decode("utf-8", "ignore")
             history[-1][1] = partial_text
             yield history
-
+        logger.info("Генерация ответа закончена")
         if files:
             partial_text += SOURCES_SEPARATOR
             sources_text = "\n\n\n".join(

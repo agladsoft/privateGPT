@@ -121,6 +121,7 @@ class ChatService:
             else:
                 data[document] = f"Score: {round(doc[1], 2)}, Text: {doc[0].page_content}"
         list_data: list = [f"{doc}\n\n{text}" for doc, text in data.items()]
+        logger.info("Получили контекст из базы")
         return "\n\n\n".join(list_data) if list_data else "Документов в базе нету"
 
     def _chat_engine(
