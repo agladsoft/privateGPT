@@ -298,7 +298,7 @@ class PrivateGptUi:
             gr.Markdown(
                 f"""<h1><center>{logo_svg} Я, Макар - виртуальный ассистент Рускон</center></h1>"""
             )
-            uid = gr.State()
+            uid = gr.State(None)
 
             with gr.Tab("Чат"):
                 with gr.Accordion("Параметры", open=False):
