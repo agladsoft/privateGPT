@@ -23,6 +23,10 @@ import uuid
 import tempfile
 import pandas as pd
 
+from celery import Celery
+
+celery_ = Celery('tasks', broker='redis://localhost:6379/0', backend='redis://localhost:6379/1')
+
 logger = logging.getLogger(__name__)
 
 THIS_DIRECTORY_RELATIVE = Path(__file__).parent.relative_to(PROJECT_ROOT_PATH)
@@ -187,6 +191,7 @@ class PrivateGptUi:
         # return "", self._list_ingested_files()
 
     @staticmethod
+    @celery_.task(name='Requests')
     def user(message, history):
         uid = uuid.uuid4()
         logger.info(f"Обработка вопроса [uid - {uid}]")
