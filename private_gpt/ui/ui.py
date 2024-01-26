@@ -328,7 +328,7 @@ class PrivateGptUi:
                     with gr.Tab(label="Параметры извлечения фрагментов из текста"):
                         limit = gr.Slider(
                             minimum=1,
-                            maximum=5,
+                            maximum=7,
                             value=4,
                             step=1,
                             interactive=True,
