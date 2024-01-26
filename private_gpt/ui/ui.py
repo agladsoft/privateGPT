@@ -21,6 +21,7 @@ from private_gpt.ui.images import FAVICON_PATH
 import re
 import uuid
 import tempfile
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -159,15 +160,31 @@ class PrivateGptUi:
             return gr.update(placeholder=self._system_prompt, interactive=False)
 
     def _list_ingested_files(self):
-        return self._ingest_service.list_ingested_langchain()
+        db = self._ingest_service.list_ingested_langchain()
+        files = {
+            os.path.basename(ingested_document["source"])
+            for ingested_document in db["metadatas"]
+        }
+        return pd.DataFrame({"Название файлов": list(files)})
 
     def delete_doc(self, documents: str):
         logger.info(f"Documents is {documents}")
+        for_delete_ids: list = []
         list_documents: list[str] = documents.strip().split("\n")
-        for node in self._ingest_service.list_ingested_langchain():
-            if node.doc_id is not None and os.path.basename(node.doc_metadata["file_name"]) in list_documents:
-                self._ingest_service.delete(node.doc_id)
+        db = self._ingest_service.list_ingested_langchain()
+
+        for ingested_document, doc_id in zip(db["metadatas"], db["ids"]):
+            print(ingested_document)
+            if os.path.basename(ingested_document["source"]) in list_documents:
+                for_delete_ids.append(doc_id)
+        if for_delete_ids:
+            self._ingest_service.delete(for_delete_ids)
         return "", self._list_ingested_files()
+
+        # for node in self._ingest_service.list_ingested_langchain():
+        #     if node.doc_id is not None and os.path.basename(node.doc_metadata["file_name"]) in list_documents:
+        #         self._ingest_service.delete(node.doc_id)
+        # return "", self._list_ingested_files()
 
     @staticmethod
     def user(message, history):

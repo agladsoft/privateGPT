@@ -121,19 +121,15 @@ class IngestService:
         logger.debug("Found count=%s ingested documents", len(ingested_docs))
         return ingested_docs
 
-    def list_ingested_langchain(self) -> pd.DataFrame:
-        files = {
-            os.path.basename(ingested_document["source"])
-            for ingested_document in self.ingest_component._index.get()["metadatas"]
-        }
-        return pd.DataFrame({"Название файлов": list(files)})
+    def list_ingested_langchain(self):
+        return self.ingest_component._index.get()
 
-    def delete(self, doc_id: str) -> None:
+    def delete(self, doc_ids: list) -> None:
         """Delete an ingested document.
 
         :raises ValueError: if the document does not exist
         """
         logger.info(
-            "Deleting the ingested document=%s in the doc and index store", doc_id
+            "Deleting the ingested document=%s in the doc and index store", doc_ids
         )
-        self.ingest_component.delete(doc_id)
+        self.ingest_component._index.delete(doc_ids)
