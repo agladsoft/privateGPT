@@ -13,6 +13,7 @@ services:
       - ./models/:/home/worker/app/models/
       - ./upload_files/:/home/worker/app/upload_files/
       - ./private_gpt/:/home/worker/app/private_gpt/
+      - ./logging/:/home/worker/app/logging/
     ports:
       - "8001:8080"
     deploy:
