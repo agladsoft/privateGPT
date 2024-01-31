@@ -223,6 +223,10 @@ class PrivateGptUi:
         logger.info(f"Закончена обработка вопроса. UID - [{uid}]")
         return "", history, uid
 
+    def stop(self, uid):
+        logger.info(f"Остановлено генерирование ответа. UID - [{uid}]")
+        self.semaphore.release()
+
     @staticmethod
     def get_message_tokens(model, role: str, content: str) -> list:
         """
@@ -542,8 +546,8 @@ class PrivateGptUi:
 
             # Stop generation
             stop.click(
-                fn=self.semaphore.release(),
-                inputs=None,
+                fn=self.stop,
+                inputs=[uid],
                 outputs=None,
                 cancels=[submit_event, submit_click_event, regenerate_click_event],
                 queue=False,
