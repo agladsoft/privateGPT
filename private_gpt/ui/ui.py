@@ -2,6 +2,7 @@
 import datetime
 import logging
 import os.path
+import threading
 from pathlib import Path
 from typing import Any, List
 
@@ -114,6 +115,8 @@ class PrivateGptUi:
         self._ui_block = None
         self._queue = 0
 
+        self.semaphore = threading.Semaphore()
+
         # Initialize system prompt based on default mode
         self.mode = MODES[0]
         self._system_prompt = self._get_default_system_prompt(self.mode)
@@ -197,10 +200,13 @@ class PrivateGptUi:
     def user(self, message, history):
         uid = uuid.uuid4()
         logger.info(f"Обработка вопроса. Очередь - {self._queue}. UID - [{uid}]")
+        self.semaphore.acquire()
         if history is None:
             history = []
         new_history = history + [[message, None]]
         self._queue += 1
+        self.semaphore.release()
+        logger.info(f"Закончена обработка вопроса. UID - [{uid}]")
         return "", new_history, uid
 
     def regenerate_response(self, history):
@@ -250,6 +256,7 @@ class PrivateGptUi:
         """
         logger.info(f"Подготовка к генерации ответа. Формирование полного вопроса на основе контекста и истории "
                     f"[uid - {uid}]")
+        self.semaphore.acquire()
         if not history or not history[-1][0]:
             yield history[:-1]
             return
@@ -272,7 +279,7 @@ class PrivateGptUi:
         message_tokens = self.get_message_tokens(model=model, role="user", content=last_user_message)
         tokens.extend(message_tokens)
         logger.info(f"Вопрос был полностью сформирован [uid - {uid}]")
-        f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Вопрос: {last_user_message} - "
+        f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Вопрос: {history[-1][0]} - "
                        f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n")
 
         role_tokens = [model.token_bos(), BOT_TOKEN, LINEBREAK_TOKEN]
@@ -309,8 +316,9 @@ class PrivateGptUi:
                                 f"Попробуйте подробнее описать ваш запрос или перейти в режим {MODES[1]}, " \
                                 f"чтобы общаться с Макаром вне контекста Базы знаний"
             history[-1][1] = partial_text
-        self._queue -= 1
         yield history
+        self._queue -= 1
+        self.semaphore.release()
 
     def _chat(self, history, context, mode, uid, scores):
         match mode:
@@ -531,7 +539,7 @@ class PrivateGptUi:
 
             # Stop generation
             stop.click(
-                fn=None,
+                fn=self.semaphore.release(),
                 inputs=None,
                 outputs=None,
                 cancels=[submit_event, submit_click_event, regenerate_click_event],
