@@ -301,14 +301,18 @@ class PrivateGptUi:
         partial_text = ""
         logger.info(f"Начинается генерация ответа [uid - {uid}]")
         f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Ответ: ")
-        for i, token in enumerate(generator):
-            if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
-                break
-            letters = model.detokenize([token]).decode("utf-8", "ignore")
-            partial_text += letters
-            f_logger.finfo(letters)
-            history[-1][1] = partial_text
-            yield history
+        try:
+            for i, token in enumerate(generator):
+                if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
+                    break
+                letters = model.detokenize([token]).decode("utf-8", "ignore")
+                partial_text += letters
+                f_logger.finfo(letters)
+                history[-1][1] = partial_text
+                yield history
+        except Exception as ex:
+            logger.error(f"Error - {ex}")
+            self.semaphore.release()
         f_logger.finfo(f" - [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n\n")
         logger.info(f"Генерация ответа закончена [uid - {uid}]")
         if files:
@@ -440,9 +444,9 @@ class PrivateGptUi:
                 with gr.Row(elem_id="buttons"):
                     gr.Button(value="👍 Понравилось")
                     gr.Button(value="👎 Не понравилось")
-                    stop = gr.Button(value="⛔ Остановить")
-                    regenerate = gr.Button(value="🔄 Повторить")
-                    clear = gr.Button(value="🗑️ Очистить")
+                    # stop = gr.Button(value="⛔ Остановить")
+                    # regenerate = gr.Button(value="🔄 Повторить")
+                    # clear = gr.Button(value="🗑️ Очистить")
 
                 with gr.Row():
                     gr.Markdown(
@@ -526,35 +530,35 @@ class PrivateGptUi:
                 queue=True,
             )
 
-            # Regenerate
-            regenerate_click_event = regenerate.click(
-                fn=self.regenerate_response,
-                inputs=[chatbot],
-                outputs=[msg, chatbot, uid],
-                queue=False,
-            ).success(
-                fn=self._get_context,
-                inputs=[chatbot, mode, limit, uid],
-                outputs=[content, mode, scores],
-                queue=True,
-            ).success(
-                fn=self._chat,
-                inputs=[chatbot, content, mode, uid, scores],
-                outputs=chatbot,
-                queue=True,
-            )
+            # # Regenerate
+            # regenerate_click_event = regenerate.click(
+            #     fn=self.regenerate_response,
+            #     inputs=[chatbot],
+            #     outputs=[msg, chatbot, uid],
+            #     queue=False,
+            # ).success(
+            #     fn=self._get_context,
+            #     inputs=[chatbot, mode, limit, uid],
+            #     outputs=[content, mode, scores],
+            #     queue=True,
+            # ).success(
+            #     fn=self._chat,
+            #     inputs=[chatbot, content, mode, uid, scores],
+            #     outputs=chatbot,
+            #     queue=True,
+            # )
 
-            # Stop generation
-            stop.click(
-                fn=self.stop,
-                inputs=[uid],
-                outputs=None,
-                cancels=[submit_event, submit_click_event, regenerate_click_event],
-                queue=False,
-            )
-
-            # Clear history
-            clear.click(lambda: None, None, chatbot, queue=False)
+            # # Stop generation
+            # stop.click(
+            #     fn=self.stop,
+            #     inputs=[uid],
+            #     outputs=None,
+            #     cancels=[submit_event, submit_click_event, regenerate_click_event],
+            #     queue=False,
+            # )
+            #
+            # # Clear history
+            # clear.click(lambda: None, None, chatbot, queue=False)
 
         return blocks
 
