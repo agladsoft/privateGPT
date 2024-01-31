@@ -27,7 +27,6 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-# logging_path = f"{Path(PROJECT_ROOT_PATH).parent}/logging"
 logging_path = os.path.join(PROJECT_ROOT_PATH, "logging")
 if not os.path.exists(logging_path):
     os.mkdir(logging_path)
