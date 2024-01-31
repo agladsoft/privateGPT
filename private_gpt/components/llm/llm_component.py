@@ -37,8 +37,7 @@ class LLMComponent:
                     n_gpu_layers=30,
                     model_path=path,
                     n_ctx=settings.llm.context_window,
-                    n_parts=1,
-                    use_mlock=True
+                    n_parts=1
                 )
 
             # case "sagemaker":

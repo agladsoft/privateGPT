@@ -9,7 +9,7 @@ llm:
 
 local:
   llm_hf_repo_id: ${PGPT_HF_REPO_ID:IlyaGusev/saiga2_7b_gguf}
-  llm_hf_model_file: ${PGPT_HF_MODEL_FILE:model-q3_K.gguf}
+  llm_hf_model_file: ${PGPT_HF_MODEL_FILE:model-q5_K.gguf}
   embedding_hf_model_name: ${PGPT_EMBEDDING_HF_MODEL_NAME:sentence-transformers/paraphrase-multilingual-mpnet-base-v2}
 
 sagemaker:
