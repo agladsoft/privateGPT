@@ -217,7 +217,10 @@ class PrivateGptUi:
         """
         uid = uuid.uuid4()
         logger.info(f"Обработка вопроса. Очередь - {self._queue}. UID - [{uid}]")
+        self.semaphore.acquire()
         self._queue += 1
+        self.semaphore.release()
+        logger.info(f"Закончена обработка вопроса. UID - [{uid}]")
         return "", history, uid
 
     @staticmethod
