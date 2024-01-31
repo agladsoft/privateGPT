@@ -1,4 +1,5 @@
 """This file should be imported only and only if you want to run the UI locally."""
+import datetime
 import logging
 import os.path
 from pathlib import Path
@@ -12,11 +13,12 @@ from pydantic import BaseModel
 
 from private_gpt.constants import PROJECT_ROOT_PATH
 from private_gpt.di import global_injector
-from private_gpt.server.chat.chat_service import ChatService, CompletionGen
+from private_gpt.server.chat.chat_service import ChatService
 from private_gpt.server.chunks.chunks_service import Chunk, ChunksService
 from private_gpt.server.ingest.ingest_service import IngestService
 from private_gpt.settings.settings import settings
 from private_gpt.ui.images import FAVICON_PATH
+from private_gpt.ui.logging_custom import FileLogger
 
 import re
 import uuid
@@ -24,6 +26,11 @@ import tempfile
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+logging_path = f"{Path(PROJECT_ROOT_PATH).parent}/logging"
+if not os.path.exists(logging_path):
+    os.mkdir(logging_path)
+f_logger = FileLogger(__name__, f"{logging_path}/answers_bot.log", mode='a', level=logging.INFO)
 
 THIS_DIRECTORY_RELATIVE = Path(__file__).parent.relative_to(PROJECT_ROOT_PATH)
 # Should be "private_gpt/ui/avatar-bot.ico"
@@ -105,6 +112,7 @@ class PrivateGptUi:
 
         # Cache the UI blocks
         self._ui_block = None
+        self._queue = 0
 
         # Initialize system prompt based on default mode
         self.mode = MODES[0]
@@ -186,24 +194,24 @@ class PrivateGptUi:
         #         self._ingest_service.delete(node.doc_id)
         # return "", self._list_ingested_files()
 
-    @staticmethod
-    def user(message, history):
+    def user(self, message, history):
         uid = uuid.uuid4()
-        logger.info(f"Обработка вопроса [uid - {uid}]")
+        logger.info(f"Обработка вопроса. Очередь - {self._queue}. UID - [{uid}]")
         if history is None:
             history = []
         new_history = history + [[message, None]]
+        self._queue += 1
         return "", new_history, uid
 
-    @staticmethod
-    def regenerate_response(history):
+    def regenerate_response(self, history):
         """
 
         :param history:
         :return:
         """
         uid = uuid.uuid4()
-        logger.info(f"Обработка вопроса [uid - {uid}]")
+        logger.info(f"Обработка вопроса. Очередь - {self._queue}. UID - [{uid}]")
+        self._queue += 1
         return "", history, uid
 
     @staticmethod
@@ -264,6 +272,8 @@ class PrivateGptUi:
         message_tokens = self.get_message_tokens(model=model, role="user", content=last_user_message)
         tokens.extend(message_tokens)
         logger.info(f"Вопрос был полностью сформирован [uid - {uid}]")
+        f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Вопрос: {last_user_message} - "
+                       f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n")
 
         role_tokens = [model.token_bos(), BOT_TOKEN, LINEBREAK_TOKEN]
         tokens.extend(role_tokens)
@@ -276,12 +286,16 @@ class PrivateGptUi:
 
         partial_text = ""
         logger.info(f"Начинается генерация ответа [uid - {uid}]")
+        f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Ответ: ")
         for i, token in enumerate(generator):
             if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
                 break
-            partial_text += model.detokenize([token]).decode("utf-8", "ignore")
+            letters = model.detokenize([token]).decode("utf-8", "ignore")
+            partial_text += letters
+            f_logger.finfo(letters)
             history[-1][1] = partial_text
             yield history
+        f_logger.finfo(f" - [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n\n")
         logger.info(f"Генерация ответа закончена [uid - {uid}]")
         if files:
             partial_text += SOURCES_SEPARATOR
@@ -295,6 +309,7 @@ class PrivateGptUi:
                                 f"Попробуйте подробнее описать ваш запрос или перейти в режим {MODES[1]}, " \
                                 f"чтобы общаться с Макаром вне контекста Базы знаний"
             history[-1][1] = partial_text
+        self._queue -= 1
         yield history
 
     def _chat(self, history, context, mode, uid, scores):
