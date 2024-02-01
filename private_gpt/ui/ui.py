@@ -267,9 +267,6 @@ class PrivateGptUi:
         system_message: dict = {"role": "system", "content": self._system_prompt}
         return self.get_message_tokens(model, **system_message)
 
-    def stop_btn(self):
-        logger.info("clicked_stop_btn")
-
     def bot(self, history, retrieved_docs, mode, uid, scores):
         """
 
@@ -578,7 +575,7 @@ class PrivateGptUi:
 
             # Clear history
             clear.click(
-                fn=self.stop_btn,
+                fn=lambda: None,
                 inputs=None,
                 outputs=chatbot,
                 queue=False,
