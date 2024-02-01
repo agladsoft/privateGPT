@@ -381,7 +381,7 @@ class PrivateGptUi:
                     with gr.Tab(label="Параметры извлечения фрагментов из текста"):
                         limit = gr.Slider(
                             minimum=1,
-                            maximum=7,
+                            maximum=10,
                             value=4,
                             step=1,
                             interactive=True,
@@ -575,8 +575,8 @@ class PrivateGptUi:
             #     cancels=[submit_event, submit_click_event, regenerate_click_event],
             #     queue=False,
             # )
-            #
-            # # Clear history
+
+            # Clear history
             clear.click(
                 fn=self.stop_btn,
                 inputs=None,
