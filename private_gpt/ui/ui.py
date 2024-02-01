@@ -38,6 +38,21 @@ THIS_DIRECTORY_RELATIVE = Path(__file__).parent.relative_to(PROJECT_ROOT_PATH)
 # Should be "private_gpt/ui/avatar-bot.ico"
 AVATAR_USER = THIS_DIRECTORY_RELATIVE / "icons8-человек-96.png"
 AVATAR_BOT = THIS_DIRECTORY_RELATIVE / "icons8-bot-96.png"
+js = """
+function disable_btn() {
+    var elements = document.getElementsByClassName('wrap default minimal svelte-1occ011 translucent');
+
+    for (var i = 0; i < elements.length; i++) {
+        if (elements[i].classList.contains('generating') || !elements[i].classList.contains('hide')) {
+            // Выполнить любое действие здесь
+            console.log('Элемент содержит класс generating');
+            // Например:
+            document.getElementById('component-35').disabled = true
+            setTimeout(() => { document.getElementById('component-35').disabled = false }, 180000);
+        }
+    }
+}
+"""
 
 UI_TAB_TITLE = "MakarGPT"
 
@@ -252,6 +267,9 @@ class PrivateGptUi:
         system_message: dict = {"role": "system", "content": self._system_prompt}
         return self.get_message_tokens(model, **system_message)
 
+    def stop_btn(self):
+        logger.info("clicked_stop_btn")
+
     def bot(self, history, retrieved_docs, mode, uid, scores):
         """
 
@@ -447,7 +465,7 @@ class PrivateGptUi:
                     gr.Button(value="👎 Не понравилось")
                     # stop = gr.Button(value="⛔ Остановить")
                     # regenerate = gr.Button(value="🔄 Повторить")
-                    # clear = gr.Button(value="🗑️ Очистить")
+                    clear = gr.Button(value="🗑️ Очистить")
 
                 with gr.Row():
                     gr.Markdown(
@@ -559,7 +577,13 @@ class PrivateGptUi:
             # )
             #
             # # Clear history
-            # clear.click(lambda: None, None, chatbot, queue=False)
+            clear.click(
+                fn=self.stop_btn,
+                inputs=None,
+                outputs=chatbot,
+                queue=False,
+                js=js
+            )
 
         return blocks
 
