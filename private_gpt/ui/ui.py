@@ -26,6 +26,7 @@ import uuid
 import tempfile
 import pandas as pd
 
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 logger = logging.getLogger(__name__)
 
 logging_path = os.path.join(PROJECT_ROOT_PATH, "logging")
