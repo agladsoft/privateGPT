@@ -77,5 +77,3 @@ COPY scripts/setup setup
 COPY fern/ fern
 COPY *.yaml *.md ./
 COPY pyproject.toml poetry.lock ./
-
-#ENTRYPOINT .venv/bin/python3 -m private_gpt
