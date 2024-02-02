@@ -42,7 +42,7 @@ services:
     container_name: worker
     build: ./
     restart: always
-    command: celery -A private_gpt worker -l info -E
+    command: celery -A private_gpt.__main__.py worker -l info -E
     ulimits:
       memlock:
         soft: -1
