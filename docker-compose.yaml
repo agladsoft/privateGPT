@@ -1,9 +1,48 @@
 version: '3.9'
 services:
-  private_gpt:
-    container_name: private_gpt
-    build: .
+#  private_gpt:
+#    container_name: private_gpt
+#    build: .
+#    restart: always
+#    ulimits:
+#      memlock:
+#        soft: -1
+#        hard: -1
+#    volumes:
+#      - ./local_data/:/home/worker/app/local_data/
+#      - ./models/:/home/worker/app/models/
+#      - ./upload_files/:/home/worker/app/upload_files/
+#      - ./private_gpt/:/home/worker/app/private_gpt/
+#      - ./logging/:/home/worker/app/logging/
+#    ports:
+#      - "8001:8080"
+#    deploy:
+#      resources:
+#        reservations:
+#          devices:
+#            - driver: nvidia
+#              count: all
+#              capabilities: [ gpu ]
+#    environment:
+#      PORT: 8080
+#      PGPT_PROFILES: docker
+#      PGPT_MODE: local
+#    networks:
+#      - db
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - db
+
+  worker:
+    container_name: worker
+    build: ./
     restart: always
+    command: celery -A private_gpt worker -l info -E
     ulimits:
       memlock:
         soft: -1
@@ -27,6 +66,22 @@ services:
       PORT: 8080
       PGPT_PROFILES: docker
       PGPT_MODE: local
+      CELERY_BROKER_URL: redis://redis
+      CELERY_RESULT_BACKEND: redis://redis
+      PYTHONPATH: /data
+    depends_on:
+      - redis
+    networks:
+      - db
+
+  flower:
+    image: mher/flower:0.9.7
+    container_name: flower
+    command: [ 'flower', '--broker=redis://redis', '--port=5555' ]
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
     networks:
       - db
 

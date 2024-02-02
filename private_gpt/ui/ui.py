@@ -23,8 +23,10 @@ from private_gpt.ui.logging_custom import FileLogger
 
 import re
 import uuid
+import time
 import tempfile
 import pandas as pd
+from celery import Celery
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 logger = logging.getLogger(__name__)
@@ -88,6 +90,25 @@ tr span {
 }
 
 """
+
+app = Celery(
+    "tasks",
+    broker=os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0'),
+    backend=os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/1')
+)
+app.conf.accept_content = ['pickle', 'json', 'msgpack', 'yaml']
+app.conf.worker_send_task_events = True
+
+
+@app.task(bind=True)
+def receive_answer(self, chatbot, collection_radio, retrieved_docs, top_p, top_k, temp, model_selector):
+    letters = None
+    chatbot = ui.bot(chatbot, collection_radio, retrieved_docs, top_p, top_k, temp, model_selector)
+    for letters in chatbot:
+        print(f"Result is {letters}")
+        self.update_state(state='PROGRESS', meta={'progress': letters})
+    self.update_state(state='SUCCESS', meta={'result': letters})
+    return letters[-1][1]
 
 
 class Source(BaseModel):
@@ -208,10 +229,16 @@ class PrivateGptUi:
             self._ingest_service.delete(for_delete_ids)
         return "", self._list_ingested_files()
 
-        # for node in self._ingest_service.list_ingested_langchain():
-        #     if node.doc_id is not None and os.path.basename(node.doc_metadata["file_name"]) in list_documents:
-        #         self._ingest_service.delete(node.doc_id)
-        # return "", self._list_ingested_files()
+    @staticmethod
+    def generate_answer(chatbot, collection_radio, retrieved_docs, top_p, top_k, temp, model_selector):
+        chatbot = receive_answer.delay(chatbot, collection_radio, retrieved_docs, top_p, top_k, temp, model_selector)
+        while chatbot.state == 'PENDING':
+            pass
+        while chatbot.state == 'PROGRESS':
+            yield chatbot.info.get('progress')
+            time.sleep(0.1)
+        print(f"Status is {chatbot.state}")
+        yield chatbot.info.get('result')
 
     def user(self, message, history):
         uid = uuid.uuid4()
@@ -282,7 +309,6 @@ class PrivateGptUi:
         self.semaphore.acquire()
         if not history or not history[-1][0]:
             yield history[:-1]
-            return
         model = self._chat_service.llm
         tokens = self.get_system_tokens(model)[:]
         tokens.append(LINEBREAK_TOKEN)

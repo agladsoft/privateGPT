@@ -1,5 +1,7 @@
 """FastAPI app creation, logger configuration and main API routes."""
+import os
 import logging
+from celery import Celery
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,19 +24,18 @@ def create_app(root_injector: Injector) -> FastAPI:
     async def bind_injector_to_request(request: Request) -> None:
         request.state.injector = root_injector
 
-    app = FastAPI(dependencies=[Depends(bind_injector_to_request)])
-
-    app.include_router(completions_router)
-    app.include_router(chat_router)
-    app.include_router(chunks_router)
-    app.include_router(ingest_router)
-    app.include_router(embeddings_router)
-    app.include_router(health_router)
+    app_fastapi = FastAPI(dependencies=[Depends(bind_injector_to_request)])
+    app_fastapi.include_router(completions_router)
+    app_fastapi.include_router(chat_router)
+    app_fastapi.include_router(chunks_router)
+    app_fastapi.include_router(ingest_router)
+    app_fastapi.include_router(embeddings_router)
+    app_fastapi.include_router(health_router)
 
     settings = root_injector.get(Settings)
     if settings.server.cors.enabled:
         logger.debug("Setting up CORS middleware")
-        app.add_middleware(
+        app_fastapi.add_middleware(
             CORSMiddleware,
             allow_credentials=settings.server.cors.allow_credentials,
             allow_origins=settings.server.cors.allow_origins,
@@ -45,9 +46,12 @@ def create_app(root_injector: Injector) -> FastAPI:
 
     if settings.ui.enabled:
         logger.debug("Importing the UI module")
-        from private_gpt.ui.ui import PrivateGptUi
+        from private_gpt.ui.ui import PrivateGptUi, app
 
         ui = root_injector.get(PrivateGptUi)
-        ui.mount_in_app(app, settings.ui.path)
 
-    return app
+        @app.task
+        def run():
+            return ui.mount_in_app(app_fastapi, settings.ui.path)
+
+    return app_fastapi
