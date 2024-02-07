@@ -374,54 +374,24 @@ class PrivateGptUi:
             scores = gr.State(None)
 
             with gr.Tab("Чат"):
-                with gr.Accordion("Параметры", open=False):
-                    with gr.Tab(label="Параметры извлечения фрагментов из текста"):
-                        limit = gr.Slider(
-                            minimum=1,
-                            maximum=10,
-                            value=4,
-                            step=1,
-                            interactive=True,
-                            label="Кол-во фрагментов для контекста"
-                        )
-                    with gr.Tab(label="Параметры нарезки"):
-                        chunk_size = gr.Slider(
-                            minimum=50,
-                            maximum=1024,
-                            value=1024,
-                            step=128,
-                            interactive=True,
-                            label="Размер фрагментов",
-                        )
-                        chunk_overlap = gr.Slider(
-                            minimum=0,
-                            maximum=500,
-                            value=100,
-                            step=10,
-                            interactive=True,
-                            label="Пересечение"
-                        )
-
-                with gr.Accordion("Контекст", open=False):
-                    with gr.Column(variant="compact"):
-                        content = gr.Markdown(
-                            value="Появятся после задавания вопросов",
-                            label="Извлеченные фрагменты",
-                            show_label=True
-                        )
-
                 with gr.Row():
                     with gr.Column(scale=4, variant="compact"):
+                        with gr.Row(elem_id="model_selector_row"):
+                            models: list = list([f"{settings().local.llm_hf_repo_id.split('/')[1]}/"
+                                                 f"{settings().local.llm_hf_model_file}"])
+                            gr.Dropdown(
+                                choices=models,
+                                value=models[0],
+                                interactive=True,
+                                show_label=False,
+                                container=False,
+                            )
                         mode = gr.Radio(
                             MODES,
                             label="Коллекции",
                             value="DB",
                             info="Переключение между выбором коллекций. Нужен ли контекст или нет?"
                         )
-                        upload_button = gr.Files(
-                            file_count="multiple"
-                        )
-                        file_warning = gr.Markdown("Фрагменты ещё не загружены!")
 
                     with gr.Column(scale=10):
                         chatbot = gr.Chatbot(
@@ -470,12 +440,55 @@ class PrivateGptUi:
                         "Ответы также не являются призывом к действию</center>"
                     )
 
+            with gr.Tab("Контекст"):
+                with gr.Accordion("Параметры", open=True):
+                    with gr.Tab(label="Параметры извлечения фрагментов из текста"):
+                        limit = gr.Slider(
+                            minimum=1,
+                            maximum=10,
+                            value=4,
+                            step=1,
+                            interactive=True,
+                            label="Кол-во фрагментов для контекста"
+                        )
+                    with gr.Tab(label="Параметры нарезки"):
+                        chunk_size = gr.Slider(
+                            minimum=50,
+                            maximum=1024,
+                            value=1024,
+                            step=128,
+                            interactive=True,
+                            label="Размер фрагментов",
+                        )
+                        chunk_overlap = gr.Slider(
+                            minimum=0,
+                            maximum=500,
+                            value=100,
+                            step=10,
+                            interactive=True,
+                            label="Пересечение"
+                        )
+
+                with gr.Accordion("Контекст", open=True):
+                    with gr.Column(variant="compact"):
+                        content = gr.Markdown(
+                            value="Появятся после задавания вопросов",
+                            label="Извлеченные фрагменты",
+                            show_label=True
+                        )
+
             with gr.Tab("Документы"):
                 with gr.Row():
                     with gr.Column(scale=3):
+                        upload_button = gr.Files(
+                            label="Загрузка документов",
+                            file_count="multiple"
+                        )
+                        file_warning = gr.Markdown("Фрагменты ещё не загружены!")
                         find_doc = gr.Textbox(
                             label="Отправить сообщение",
                             show_label=False,
+                            info=" Напишите названия файлов, которые нужно удалить из базы ",
                             placeholder="👉 Напишите название документа",
                             container=False
                         )
