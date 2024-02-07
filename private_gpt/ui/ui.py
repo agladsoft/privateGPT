@@ -386,12 +386,25 @@ class PrivateGptUi:
                                 show_label=False,
                                 container=False,
                             )
-                        mode = gr.Radio(
-                            MODES,
-                            label="Коллекции",
-                            value="DB",
-                            info="Переключение между выбором коллекций. Нужен ли контекст или нет?"
-                        )
+                        with gr.Row():
+                            mode = gr.Radio(
+                                MODES,
+                                label="Коллекции",
+                                value="DB",
+                                info="Переключение между выбором коллекций. Нужен ли контекст или нет?"
+                            )
+                        with gr.Row():
+                            with gr.Accordion("Системный промпт", open=False):
+                                system_prompt_input = gr.Textbox(
+                                    placeholder=self._system_prompt,
+                                    label="Системный промпт",
+                                    lines=5
+                                )
+                                # On blur, set system prompt to use in queries
+                                system_prompt_input.blur(
+                                    self._set_system_prompt,
+                                    inputs=system_prompt_input,
+                                )
 
                     with gr.Column(scale=10):
                         chatbot = gr.Chatbot(
@@ -404,17 +417,6 @@ class PrivateGptUi:
                                 AVATAR_BOT
                             )
                         )
-                        with gr.Accordion("Системный промпт", open=False):
-                            system_prompt_input = gr.Textbox(
-                                placeholder=self._system_prompt,
-                                label="Системный промпт",
-                                lines=2
-                            )
-                            # On blur, set system prompt to use in queries
-                            system_prompt_input.blur(
-                                self._set_system_prompt,
-                                inputs=system_prompt_input,
-                            )
 
                 with gr.Row():
                     with gr.Column(scale=20):
