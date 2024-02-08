@@ -328,6 +328,10 @@ class PrivateGptUi:
                 yield history
         except Exception as ex:
             logger.error(f"Error - {ex}")
+            partial_text += "Слишком большой контекст. " \
+                            "Попробуйте уменьшить его или измените количество выдаваемого контекста в настройках"
+            history[-1][1] = partial_text
+            yield history
             self.semaphore.release()
         f_logger.finfo(f" - [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n\n")
         logger.info(f"Генерация ответа закончена [uid - {uid}]")
