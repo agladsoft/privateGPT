@@ -25,6 +25,7 @@ import re
 import uuid
 import tempfile
 import pandas as pd
+from tinydb import TinyDB, where
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 logger = logging.getLogger(__name__)
@@ -33,6 +34,10 @@ logging_path = os.path.join(PROJECT_ROOT_PATH, "logging")
 if not os.path.exists(logging_path):
     os.mkdir(logging_path)
 f_logger = FileLogger(__name__, f"{logging_path}/answers_bot.log", mode='a', level=logging.INFO)
+
+DATA_QUESTIONS = os.path.join(PROJECT_ROOT_PATH, "data_questions")
+if not os.path.exists(DATA_QUESTIONS):
+    os.mkdir(DATA_QUESTIONS)
 
 THIS_DIRECTORY_RELATIVE = Path(__file__).parent.relative_to(PROJECT_ROOT_PATH)
 # Should be "private_gpt/ui/avatar-bot.ico"
@@ -58,7 +63,7 @@ UI_TAB_TITLE = "MakarGPT"
 
 SOURCES_SEPARATOR = "\n\n Документы: \n"
 
-MODES = ["DB", "LLM"]
+MODES = ["ВНД", "Свободное общение"]
 MAX_NEW_TOKENS: int = 1500
 LINEBREAK_TOKEN: int = 13
 SYSTEM_TOKEN: int = 1788
@@ -88,6 +93,11 @@ tr span {
 }
 
 """
+
+
+class Modes:
+    DB = MODES[0]
+    LLM = MODES[1]
 
 
 class Source(BaseModel):
@@ -136,10 +146,11 @@ class PrivateGptUi:
         # Initialize system prompt based on default mode
         self.mode = MODES[0]
         self._system_prompt = self._get_default_system_prompt(self.mode)
+        self.tiny_db = TinyDB(f'{DATA_QUESTIONS}/tiny_db.json', indent=4, ensure_ascii=False)
 
     def _get_context(self, history: list[list[str]], mode: str, limit, uid, *_: Any):
         match mode:
-            case "DB":
+            case Modes.DB:
                 content, scores = self._chat_service.retrieve(
                     history=history,
                     use_context=True,
@@ -147,7 +158,7 @@ class PrivateGptUi:
                     uid=uid
                 )
                 return content, mode, scores
-            case "LLM":
+            case Modes.LLM:
                 content, scores = self._chat_service.retrieve(
                     history=history,
                     use_context=False,
@@ -162,10 +173,10 @@ class PrivateGptUi:
         p = ""
         match mode:
             # For query chat mode, obtain default system prompt from settings
-            case "DB":
+            case Modes.DB:
                 p = settings().ui.default_query_system_prompt
             # For chat mode, obtain default system prompt from settings
-            case "LLM":
+            case Modes.LLM:
                 p = settings().ui.default_chat_system_prompt
             # For any other mode, clear the system prompt
             case _:
@@ -207,11 +218,6 @@ class PrivateGptUi:
         if for_delete_ids:
             self._ingest_service.delete(for_delete_ids)
         return "", self._list_ingested_files()
-
-        # for node in self._ingest_service.list_ingested_langchain():
-        #     if node.doc_id is not None and os.path.basename(node.doc_metadata["file_name"]) in list_documents:
-        #         self._ingest_service.delete(node.doc_id)
-        # return "", self._list_ingested_files()
 
     def user(self, message, history):
         uid = uuid.uuid4()
@@ -353,15 +359,42 @@ class PrivateGptUi:
 
     def _chat(self, history, context, mode, uid, scores):
         match mode:
-            case "DB":
+            case Modes.DB:
                 yield from self.bot(history, context, True, uid, scores)
-            case "LLM":
+            case Modes.LLM:
                 yield from self.bot(history, context, False, uid, scores)
 
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
         logger.debug("Loading count=%s files", len(files))
         message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
         return message, self._list_ingested_files()
+
+    def get_analytics(self):
+        return pd.DataFrame(self.tiny_db.all()).sort_values('Старт обработки запроса', ascending=False)
+
+    def calculate_analytics(self, messages, analyse=None):
+        message = messages[-1][0]
+        answer = messages[-1][1]
+        filter_query = where('Сообщения') == message
+        if result := self.tiny_db.search(filter_query):
+            if analyse is None:
+                self.tiny_db.update(
+                    {
+                        'Ответы': answer,
+                        'Количество повторений': result[0]['Количество повторений'] + 1,
+                        'Старт обработки запроса': str(datetime.datetime.now())
+                    },
+                    cond=filter_query
+                )
+            else:
+                self.tiny_db.update({'Оценка ответа': analyse}, cond=filter_query)
+                gr.Info("Отзыв ответу поставлен")
+        else:
+            self.tiny_db.insert(
+                {'Сообщения': message, 'Ответы': answer, 'Количество повторений': 1, 'Оценка ответа': None,
+                 'Старт обработки запроса': str(datetime.datetime.now())}
+            )
+        return self.get_analytics()
 
     def _build_ui_blocks(self) -> gr.Blocks:
         logger.debug("Creating the UI blocks")
@@ -379,37 +412,12 @@ class PrivateGptUi:
 
             with gr.Tab("Чат"):
                 with gr.Row():
-                    with gr.Column(scale=4, variant="compact"):
-                        with gr.Row(elem_id="model_selector_row"):
-                            models: list = list([f"{settings().local.llm_hf_repo_id.split('/')[1]}/"
-                                                 f"{settings().local.llm_hf_model_file}"])
-                            gr.Dropdown(
-                                choices=models,
-                                value=models[0],
-                                interactive=True,
-                                show_label=False,
-                                container=False,
-                            )
-                        with gr.Row():
-                            mode = gr.Radio(
-                                MODES,
-                                label="Коллекции",
-                                value="DB",
-                                info="Переключение между выбором коллекций. Нужен ли контекст или нет?"
-                            )
-                        with gr.Row():
-                            with gr.Accordion("Системный промпт", open=False):
-                                system_prompt_input = gr.Textbox(
-                                    placeholder=self._system_prompt,
-                                    label="Системный промпт",
-                                    lines=5
-                                )
-                                # On blur, set system prompt to use in queries
-                                system_prompt_input.blur(
-                                    self._set_system_prompt,
-                                    inputs=system_prompt_input,
-                                )
-
+                    mode = gr.Radio(
+                        MODES,
+                        value=MODES[0],
+                        show_label=False
+                    )
+                with gr.Row():
                     with gr.Column(scale=10):
                         chatbot = gr.Chatbot(
                             label="Диалог",
@@ -434,8 +442,8 @@ class PrivateGptUi:
                         submit = gr.Button("📤 Отправить", variant="primary")
 
                 with gr.Row(elem_id="buttons"):
-                    gr.Button(value="👍 Понравилось")
-                    gr.Button(value="👎 Не понравилось")
+                    like = gr.Button(value="👍 Понравилось")
+                    dislike = gr.Button(value="👎 Не понравилось")
                     # stop = gr.Button(value="⛔ Остановить")
                     # regenerate = gr.Button(value="🔄 Повторить")
                     clear = gr.Button(value="🗑️ Очистить")
@@ -445,43 +453,6 @@ class PrivateGptUi:
                         "<center>Ассистент может допускать ошибки, поэтому рекомендуем проверять важную информацию. "
                         "Ответы также не являются призывом к действию</center>"
                     )
-
-            with gr.Tab("Контекст"):
-                with gr.Accordion("Параметры", open=True):
-                    with gr.Tab(label="Параметры извлечения фрагментов из текста"):
-                        limit = gr.Slider(
-                            minimum=1,
-                            maximum=10,
-                            value=4,
-                            step=1,
-                            interactive=True,
-                            label="Кол-во фрагментов для контекста"
-                        )
-                    with gr.Tab(label="Параметры нарезки"):
-                        chunk_size = gr.Slider(
-                            minimum=50,
-                            maximum=1536,
-                            value=1200,
-                            step=128,
-                            interactive=True,
-                            label="Размер фрагментов",
-                        )
-                        chunk_overlap = gr.Slider(
-                            minimum=0,
-                            maximum=500,
-                            value=300,
-                            step=10,
-                            interactive=True,
-                            label="Пересечение"
-                        )
-
-                with gr.Accordion("Контекст", open=True):
-                    with gr.Column(variant="compact"):
-                        content = gr.Markdown(
-                            value="Появятся после задавания вопросов",
-                            label="Извлеченные фрагменты",
-                            show_label=True
-                        )
 
             with gr.Tab("Документы"):
                 with gr.Row():
@@ -512,6 +483,75 @@ class PrivateGptUi:
                         )
                         ingested_dataset.render()
 
+            with gr.Tab("Настройки"):
+                with gr.Row(elem_id="model_selector_row"):
+                    models: list = list([f"{settings().local.llm_hf_repo_id.split('/')[1]}/"
+                                         f"{settings().local.llm_hf_model_file}"])
+                    gr.Dropdown(
+                        choices=models,
+                        value=models[0],
+                        interactive=True,
+                        show_label=False,
+                        container=False,
+                    )
+                with gr.Accordion("Параметры", open=False):
+                    with gr.Tab(label="Параметры извлечения фрагментов из текста"):
+                        limit = gr.Slider(
+                            minimum=1,
+                            maximum=10,
+                            value=4,
+                            step=1,
+                            interactive=True,
+                            label="Кол-во фрагментов для контекста"
+                        )
+                    with gr.Tab(label="Параметры нарезки"):
+                        chunk_size = gr.Slider(
+                            minimum=50,
+                            maximum=1536,
+                            value=1200,
+                            step=128,
+                            interactive=True,
+                            label="Размер фрагментов",
+                        )
+                        chunk_overlap = gr.Slider(
+                            minimum=0,
+                            maximum=500,
+                            value=300,
+                            step=10,
+                            interactive=True,
+                            label="Пересечение"
+                        )
+
+                with gr.Accordion("Системный промпт", open=False):
+                    system_prompt_input = gr.Textbox(
+                        placeholder=self._system_prompt,
+                        lines=5,
+                        show_label=False
+                    )
+                    # On blur, set system prompt to use in queries
+                    system_prompt_input.blur(
+                        self._set_system_prompt,
+                        inputs=system_prompt_input,
+                    )
+
+                with gr.Accordion("Контекст", open=True):
+                    with gr.Column(variant="compact"):
+                        content = gr.Markdown(
+                            value="Появятся после задавания вопросов",
+                            label="Извлеченные фрагменты",
+                            show_label=True
+                        )
+
+            with gr.Tab("Логи диалогов"):
+                with gr.Row():
+                    with gr.Column():
+                        analytics = gr.DataFrame(
+                            value=self.get_analytics,
+                            interactive=False,
+                            wrap=True,
+                            # column_widths=[200]
+                        )
+
             mode.change(
                 self._set_current_mode, inputs=mode, outputs=system_prompt_input
             )
@@ -530,7 +570,7 @@ class PrivateGptUi:
             )
 
             # Pressing Enter
-            submit_event = msg.submit(
+            msg.submit(
                 fn=self.user,
                 inputs=[msg, chatbot],
                 outputs=[msg, chatbot, uid],
@@ -544,11 +584,16 @@ class PrivateGptUi:
                 fn=self._chat,
                 inputs=[chatbot, content, mode, uid, scores],
                 outputs=chatbot,
+                queue=True,
+            ).success(
+                fn=self.calculate_analytics,
+                inputs=chatbot,
+                outputs=analytics,
                 queue=True,
             )
 
             # Pressing the button
-            submit_click_event = submit.click(
+            submit.click(
                 fn=self.user,
                 inputs=[msg, chatbot],
                 outputs=[msg, chatbot, uid],
@@ -563,34 +608,28 @@ class PrivateGptUi:
                 inputs=[chatbot, content, mode, uid, scores],
                 outputs=chatbot,
                 queue=True,
+            ).success(
+                fn=self.calculate_analytics,
+                inputs=chatbot,
+                outputs=analytics,
+                queue=True,
             )
 
-            # # Regenerate
-            # regenerate_click_event = regenerate.click(
-            #     fn=self.regenerate_response,
-            #     inputs=[chatbot],
-            #     outputs=[msg, chatbot, uid],
-            #     queue=False,
-            # ).success(
-            #     fn=self._get_context,
-            #     inputs=[chatbot, mode, limit, uid],
-            #     outputs=[content, mode, scores],
-            #     queue=True,
-            # ).success(
-            #     fn=self._chat,
-            #     inputs=[chatbot, content, mode, uid, scores],
-            #     outputs=chatbot,
-            #     queue=True,
-            # )
+            # Like
+            like.click(
+                fn=self.calculate_analytics,
+                inputs=[chatbot, like],
+                outputs=analytics,
+                queue=True,
+            )
 
-            # # Stop generation
-            # stop.click(
-            #     fn=self.stop,
-            #     inputs=[uid],
-            #     outputs=None,
-            #     cancels=[submit_event, submit_click_event, regenerate_click_event],
-            #     queue=False,
-            # )
+            # Dislike
+            dislike.click(
+                fn=self.calculate_analytics,
+                inputs=[chatbot, dislike],
+                outputs=analytics,
+                queue=True,
+            )
 
             # Clear history
             clear.click(
