@@ -370,7 +370,10 @@ class PrivateGptUi:
         return message, self._list_ingested_files()
 
     def get_analytics(self):
-        return pd.DataFrame(self.tiny_db.all()).sort_values('Старт обработки запроса', ascending=False)
+        try:
+            return pd.DataFrame(self.tiny_db.all()).sort_values('Старт обработки запроса', ascending=False)
+        except KeyError:
+            return pd.DataFrame(self.tiny_db.all())
 
     def calculate_analytics(self, messages, analyse=None):
         message = messages[-1][0]
@@ -583,7 +586,7 @@ class PrivateGptUi:
             ).success(
                 fn=self._chat,
                 inputs=[chatbot, content, mode, uid, scores],
-                outputs=chatbot,
+                outputs=[chatbot],
                 queue=True,
             ).success(
                 fn=self.calculate_analytics,
@@ -606,7 +609,7 @@ class PrivateGptUi:
             ).success(
                 fn=self._chat,
                 inputs=[chatbot, content, mode, uid, scores],
-                outputs=chatbot,
+                outputs=[chatbot],
                 queue=True,
             ).success(
                 fn=self.calculate_analytics,
@@ -619,7 +622,7 @@ class PrivateGptUi:
             like.click(
                 fn=self.calculate_analytics,
                 inputs=[chatbot, like],
-                outputs=analytics,
+                outputs=[analytics],
                 queue=True,
             )
 
@@ -627,7 +630,7 @@ class PrivateGptUi:
             dislike.click(
                 fn=self.calculate_analytics,
                 inputs=[chatbot, dislike],
-                outputs=analytics,
+                outputs=[analytics],
                 queue=True,
             )
 
