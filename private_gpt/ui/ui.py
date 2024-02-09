@@ -26,6 +26,7 @@ import uuid
 import tempfile
 import pandas as pd
 from tinydb import TinyDB, where
+from private_gpt.ui.__init__ import indigo_custom, gray_custom
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 logger = logging.getLogger(__name__)
@@ -90,6 +91,23 @@ tr focus {
 /* Применяем стили для ячейки span внутри td */
 tr span {
   user-select: all; /* Разрешаем выделение текста */
+}
+
+.message-bubble-border.svelte-12dsd9j.svelte-12dsd9j.svelte-12dsd9j {
+  border-style: none;
+}
+
+.message-buttons-user {
+  border-style: none;
+}
+
+.message-buttons-bot {
+  border-style: none;
+}
+
+label.svelte-1b6s6s {
+  color: white;
+  background: #405cbf;
 }
 
 """
@@ -403,7 +421,7 @@ class PrivateGptUi:
         logger.debug("Creating the UI blocks")
         with gr.Blocks(
             title=UI_TAB_TITLE,
-            theme=gr.themes.Soft(),
+            theme=gr.themes.Soft(primary_hue=indigo_custom, secondary_hue=indigo_custom, neutral_hue=gray_custom),
             css=BLOCK_CSS
         ) as blocks:
             logo_svg = f'<img src="{FAVICON_PATH}" width="48px" style="display: inline">'
