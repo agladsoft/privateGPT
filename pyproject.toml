@@ -27,6 +27,7 @@ huggingface-hub = "0.19.4"
 pdfminer-six = "20221105"
 gradio = "4.10.0"
 sentence-transformers = "2.2.2"
+tinydb = "4.8.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^22"
