@@ -460,8 +460,8 @@ class PrivateGptUi:
                     with gr.Tab(label="Параметры нарезки"):
                         chunk_size = gr.Slider(
                             minimum=50,
-                            maximum=1024,
-                            value=1024,
+                            maximum=1536,
+                            value=1200,
                             step=128,
                             interactive=True,
                             label="Размер фрагментов",
@@ -469,7 +469,7 @@ class PrivateGptUi:
                         chunk_overlap = gr.Slider(
                             minimum=0,
                             maximum=500,
-                            value=100,
+                            value=300,
                             step=10,
                             interactive=True,
                             label="Пересечение"
@@ -619,4 +619,4 @@ if __name__ == "__main__":
     ui = global_injector.get(PrivateGptUi)
     _blocks = ui.get_ui_blocks()
     _blocks.queue()
-    _blocks.launch(debug=False, show_api=False)
+    _blocks.launch(debug=False, show_api=False, allowed_paths=["."])

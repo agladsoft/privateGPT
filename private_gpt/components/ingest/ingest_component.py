@@ -121,7 +121,7 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
             IngestionHelperLangchain._load_file_to_documents(path) for path in files
         ]
         text_splitter: RecursiveCharacterTextSplitter = RecursiveCharacterTextSplitter(
-            separators=[".\n\n", ".\n"], chunk_size=chunk_size, chunk_overlap=chunk_overlap
+            chunk_size=chunk_size, chunk_overlap=chunk_overlap
         )
         message, documents = IngestionHelperLangchain.transform_file_into_documents(load_documents, text_splitter)
         ids: List[str] = [
