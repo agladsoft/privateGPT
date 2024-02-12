@@ -394,8 +394,8 @@ class PrivateGptUi:
             return pd.DataFrame(self.tiny_db.all())
 
     def calculate_analytics(self, messages, analyse=None):
-        message = messages[-1][0]
-        answer = messages[-1][1]
+        message = messages[-1][0] if messages else None
+        answer = messages[-1][1] if message else None
         filter_query = where('Сообщения') == message
         if result := self.tiny_db.search(filter_query):
             if analyse is None:
@@ -410,7 +410,7 @@ class PrivateGptUi:
             else:
                 self.tiny_db.update({'Оценка ответа': analyse}, cond=filter_query)
                 gr.Info("Отзыв ответу поставлен")
-        else:
+        elif message is not None:
             self.tiny_db.insert(
                 {'Сообщения': message, 'Ответы': answer, 'Количество повторений': 1, 'Оценка ответа': None,
                  'Старт обработки запроса': str(datetime.datetime.now())}
