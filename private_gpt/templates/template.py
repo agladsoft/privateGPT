@@ -28,7 +28,7 @@ def create_doc(message, surname, name, post, department):
     table.cell(0, 0).text = "Директор Департамента стратегического и организационного развития"
     table.cell(0, 1).text = "В.Д. Шальнов"
     table.cell(0, 2).text = f"{datetime.now().strftime('%d.%m.%Y')}"
-    path_dir = f"{PROJECT_ROOT_PATH}/templates"
+    path_dir = os.path.join(f"{PROJECT_ROOT_PATH}/upload_files", "files")
     os.makedirs(path_dir, exist_ok=True)
     path_file = f"{path_dir}/Заявка на отпуск.docx"
     doc.save(path_file)
