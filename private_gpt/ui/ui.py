@@ -389,15 +389,14 @@ class PrivateGptUi:
         logger.info(f"Генерация ответа закончена [uid - {uid}]")
         if files:
             partial_text += SOURCES_SEPARATOR
-            sources_text = "\n\n\n".join(
+            sources_text = [
                 f"{index}. {source}"
                 for index, source in enumerate(files, start=1)
-            )
-            partial_text += sources_text
-            # if scores and scores[0] > 4:
-            #     partial_text += f"\n\n⚠️ Похоже, данные в Базе знаний слабо соответствуют вашему запросу. " \
-            #                     f"Попробуйте подробнее описать ваш запрос или перейти в режим {MODES[1]}, " \
-            #                     f"чтобы общаться с Макаром вне контекста Базы знаний"
+            ]
+            if scores and scores[0] < 4:
+                partial_text += "\n\n\n".join(sources_text)
+            elif scores and scores[0] > 4:
+                partial_text += sources_text[0]
             history[-1][1] = partial_text
         yield history
         self._queue -= 1
