@@ -85,14 +85,36 @@ BLOCK_CSS = """
 
 /* Применяем стили для td */
 tr focus {
-  user-select: all; /* Разрешаем выделение текста */
+    user-select: all; /* Разрешаем выделение текста */
 }
 
 /* Применяем стили для ячейки span внутри td */
 tr span {
-  user-select: all; /* Разрешаем выделение текста */
+    user-select: all; /* Разрешаем выделение текста */
 }
 
+.message-bubble-border.svelte-12dsd9j.svelte-12dsd9j.svelte-12dsd9j {
+  border-style: none;
+}
+
+.message-buttons-user {
+  border-style: none;
+}
+
+.message-buttons-bot {
+  border-style: none;
+}
+
+"""
+
+JS = """
+function checkClassExists() {
+    if (!document.body.classList.contains("dark")) {
+        document.querySelector(".svelte-90oupt").style.background = "#e1e5e8";
+        document.querySelector(".svelte-nab2ao").style.background = "#e1e5e8";
+        document.querySelector(".svelte-1ed2p3z").style.background = "#ffffff";
+    }
+}
 """
 
 
@@ -471,8 +493,16 @@ class PrivateGptUi:
         logger.debug("Creating the UI blocks")
         with gr.Blocks(
             title=UI_TAB_TITLE,
-            theme=gr.themes.Soft(),
-            css=BLOCK_CSS
+            theme=gr.themes.Soft().set(
+                body_background_fill="white",
+                block_label_background_fill="#2042b9",
+                block_label_text_color="white",
+                checkbox_label_background_fill_selected="#1f419b",
+                input_background_fill="#e1e5e8",
+                button_primary_background_fill="#1f419b"
+            ),
+            css=BLOCK_CSS,
+            js=JS
         ) as blocks:
             logo_svg = f'<img src="{FAVICON_PATH}" width="48px" style="display: inline">'
             gr.Markdown(
@@ -494,7 +524,6 @@ class PrivateGptUi:
                             label="Диалог",
                             height=500,
                             show_copy_button=True,
-                            show_share_button=True,
                             avatar_images=(
                                 AVATAR_USER,
                                 AVATAR_BOT
