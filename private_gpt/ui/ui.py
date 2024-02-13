@@ -26,7 +26,6 @@ import uuid
 import tempfile
 import pandas as pd
 from tinydb import TinyDB, where
-from private_gpt.ui.__init__ import indigo_custom, gray_custom
 from private_gpt.templates.template import create_doc
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -92,40 +91,6 @@ tr focus {
 /* Применяем стили для ячейки span внутри td */
 tr span {
   user-select: all; /* Разрешаем выделение текста */
-}
-
-.message-bubble-border.svelte-12dsd9j.svelte-12dsd9j.svelte-12dsd9j {
-  border-style: none;
-}
-
-.message-buttons-user {
-  border-style: none;
-}
-
-.message-buttons-bot {
-  border-style: none;
-}
-
-label.svelte-1b6s6s {
-  color: white;
-  background: #2042b9;
-}
-
-#component-6 {
-  background: #e1e5e8;
-}
-
-.wrapper.svelte-nab2ao {
-  background: #e1e5e8;
-}
-
-.user.svelte-12dsd9j.svelte-12dsd9j.svelte-12dsd9j {
-  background-color: #2042b9;
-  color: white;
-}
-
-.svelte-1f354aw {
-  background: #e1e5e8;
 }
 
 """
@@ -506,7 +471,7 @@ class PrivateGptUi:
         logger.debug("Creating the UI blocks")
         with gr.Blocks(
             title=UI_TAB_TITLE,
-            theme=gr.themes.Soft(primary_hue=indigo_custom, secondary_hue=indigo_custom, neutral_hue=gray_custom),
+            theme=gr.themes.Soft(),
             css=BLOCK_CSS
         ) as blocks:
             logo_svg = f'<img src="{FAVICON_PATH}" width="48px" style="display: inline">'
