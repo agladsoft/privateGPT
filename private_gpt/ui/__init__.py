@@ -19,7 +19,7 @@ indigo_custom = colors.Color(
 
 gray_custom = colors.Color(
     name="gray",
-    c50="#f3f6f9",
+    c50="white",
     c100="#f3f4f6",
     c200="#e5e7eb",
     c300="#d1d5db",

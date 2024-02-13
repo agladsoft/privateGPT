@@ -27,6 +27,7 @@ import tempfile
 import pandas as pd
 from tinydb import TinyDB, where
 from private_gpt.ui.__init__ import indigo_custom, gray_custom
+from private_gpt.templates.template import create_doc
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 logger = logging.getLogger(__name__)
@@ -64,7 +65,7 @@ UI_TAB_TITLE = "MakarGPT"
 
 SOURCES_SEPARATOR = "\n\n Документы: \n"
 
-MODES = ["ВНД", "Свободное общение"]
+MODES = ["ВНД", "Свободное общение", "Получение документов"]
 MAX_NEW_TOKENS: int = 1500
 LINEBREAK_TOKEN: int = 13
 SYSTEM_TOKEN: int = 1788
@@ -107,7 +108,24 @@ tr span {
 
 label.svelte-1b6s6s {
   color: white;
-  background: #405cbf;
+  background: #2042b9;
+}
+
+#component-6 {
+  background: #e1e5e8;
+}
+
+.wrapper.svelte-nab2ao {
+  background: #e1e5e8;
+}
+
+.user.svelte-12dsd9j.svelte-12dsd9j.svelte-12dsd9j {
+  background-color: #2042b9;
+  color: white;
+}
+
+.svelte-1f354aw {
+  background: #e1e5e8;
 }
 
 """
@@ -116,6 +134,7 @@ label.svelte-1b6s6s {
 class Modes:
     DB = MODES[0]
     LLM = MODES[1]
+    DOC = MODES[2]
 
 
 class Source(BaseModel):
@@ -183,6 +202,13 @@ class PrivateGptUi:
                     uid=uid
                 )
                 return content, mode, scores
+            case Modes.DOC:
+                content, scores = self._chat_service.retrieve(
+                    history=history,
+                    use_context=False,
+                    uid=uid
+                )
+                return content, mode, scores
 
     # On initialization and on mode change, this function set the system prompt
     # to the default prompt based on the mode (and user settings).
@@ -195,6 +221,8 @@ class PrivateGptUi:
                 p = settings().ui.default_query_system_prompt
             # For chat mode, obtain default system prompt from settings
             case Modes.LLM:
+                p = settings().ui.default_chat_system_prompt
+            case Modes.DOC:
                 p = settings().ui.default_chat_system_prompt
             # For any other mode, clear the system prompt
             case _:
@@ -375,12 +403,82 @@ class PrivateGptUi:
         self._queue -= 1
         self.semaphore.release()
 
+    def get_documents(self, history, uid):
+        logger.info(f"Подготовка к генерации ответа. Формирование полного вопроса на основе контекста и истории "
+                    f"[uid - {uid}]")
+        self.semaphore.acquire()
+        if not history or not history[-1][0]:
+            yield history[:-1]
+            return
+        model = self._chat_service.llm
+        tokens = self.get_system_tokens(model)[:]
+        tokens.append(LINEBREAK_TOKEN)
+
+        for user_message, bot_message in history[-4:-1]:
+            message_tokens = self.get_message_tokens(model=model, role="user", content=user_message)
+            tokens.extend(message_tokens)
+
+        last_user_message = history[-1][0]
+
+        # last_user_message = f"{last_user_message}\n\n" \
+        #                     f"Напиши ответ только так, без каких либо дополнений: " \
+        #                     f"Прошу предоставить ежегодный оплачиваемый отпуск с " \
+        #                     f"(дата начала отпуска в формате '%d.%m.%Y') года на " \
+        #                     f"n " \
+        #                     f"календарных дней."
+
+        # last_user_message = f"{last_user_message}\n\n" \
+        #                     f"Напиши ответ только так, без каких либо дополнений: " \
+        #                     f"Прошу предоставить ежегодный оплачиваемый отпуск с " \
+        #                     f"(дата начала отпуска в формате '%d.%m.%Y') года по " \
+        #                     f"(дата окончания отпуска в формате '%d.%m.%Y')."
+
+        last_user_message = f"{last_user_message}\n\n" \
+                            f"Напиши ответ только так, без каких либо дополнений: " \
+                            f"Начало отпуска: (в формате '%d.%m.%Y')\n" \
+                            f"Окончание отпуска: (в формате '%d.%m.%Y')"
+
+        message_tokens = self.get_message_tokens(model=model, role="user", content=last_user_message)
+        tokens.extend(message_tokens)
+        role_tokens = [model.token_bos(), BOT_TOKEN, LINEBREAK_TOKEN]
+        tokens.extend(role_tokens)
+        generator = model.generate(
+            tokens,
+            top_k=80,
+            top_p=0.9,
+            temp=0.1
+        )
+
+        partial_text = ""
+        logger.info(f"Начинается генерация ответа [uid - {uid}]")
+        f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Ответ: ")
+        for i, token in enumerate(generator):
+            if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
+                break
+            letters = model.detokenize([token]).decode("utf-8", "ignore")
+            partial_text += letters
+            f_logger.finfo(letters)
+            history[-1][1] = partial_text
+            yield history
+        f_logger.finfo(f" - [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n\n")
+        logger.info(f"Генерация ответа закончена [uid - {uid}]")
+
+        file = create_doc(partial_text, "Титова", "Сергея Сергеевича", "Руководитель отдела",
+                          "Отдел организационного развития")
+        partial_text += f'\n\n\nФайл: {file}'
+        history[-1][1] = partial_text
+        yield history
+        self._queue -= 1
+        self.semaphore.release()
+
     def _chat(self, history, context, mode, uid, scores):
         match mode:
             case Modes.DB:
                 yield from self.bot(history, context, True, uid, scores)
             case Modes.LLM:
                 yield from self.bot(history, context, False, uid, scores)
+            case Modes.DOC:
+                yield from self.get_documents(history, uid)
 
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
         logger.debug("Loading count=%s files", len(files))
