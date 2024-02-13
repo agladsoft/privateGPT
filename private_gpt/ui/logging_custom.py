@@ -1,7 +1,8 @@
 import logging
+from logging.handlers import RotatingFileHandler
 
 
-class SingleLineLogHandler(logging.FileHandler):
+class SingleLineLogHandler(RotatingFileHandler):
     def emit(self, record):
         msg = self.format(record)
         if self.stream is not None:
@@ -23,7 +24,8 @@ class FileLogger(logging.Logger):
         super().__init__(name, level)
 
         # Create a custom file handler
-        self.file_handler = SingleLineLogHandler(filename=filename, mode=mode)
+        self.file_handler = SingleLineLogHandler(filename=filename, mode=mode, maxBytes=1.5 * pow(1024, 2),
+                                                 backupCount=3)
 
         # Set the formatter for the file handler
         if fformatter is not None:
