@@ -302,6 +302,66 @@ class PrivateGptUi:
         system_message: dict = {"role": "system", "content": self._system_prompt}
         return self.get_message_tokens(model, **system_message)
 
+    def get_message_generator(self, history, retrieved_docs, mode, uid):
+        model = self._chat_service.llm
+        tokens = self.get_system_tokens(model)[:]
+        tokens.append(LINEBREAK_TOKEN)
+
+        for user_message, bot_message in history[-4:-1]:
+            message_tokens = self.get_message_tokens(model=model, role="user", content=user_message)
+            tokens.extend(message_tokens)
+
+        last_user_message = history[-1][0]
+        pattern = r'<a\s+[^>]*>(.*?)</a>'
+        files = re.findall(pattern, retrieved_docs)
+        for file in files:
+            retrieved_docs = re.sub(fr'<a\s+[^>]*>{file}</a>', file, retrieved_docs)
+        if retrieved_docs and mode == Modes.DB:
+            last_user_message = f"Контекст: {retrieved_docs}\n\nИспользуя только контекст, ответь на вопрос: " \
+                                f"{last_user_message}"
+        elif mode == Modes.DOC:
+            last_user_message = f"{last_user_message}\n\n" \
+                                f"Если в контексте не указан год, то пиши {datetime.date.today().year}. " \
+                                f"Напиши ответ только так, без каких либо дополнений: " \
+                                f"Прошу предоставить ежегодный оплачиваемый отпуск с " \
+                                f"(дата начала отпуска в формате '%d.%m.%Y') по " \
+                                f"(дата окончания отпуска в формате '%d.%m.%Y')."
+        message_tokens = self.get_message_tokens(model=model, role="user", content=last_user_message)
+        tokens.extend(message_tokens)
+        logger.info(f"Вопрос был полностью сформирован [uid - {uid}]")
+        f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Вопрос: {history[-1][0]} - "
+                       f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n")
+
+        role_tokens = [model.token_bos(), BOT_TOKEN, LINEBREAK_TOKEN]
+        tokens.extend(role_tokens)
+        generator = model.generate(
+            tokens,
+            top_k=80,
+            top_p=0.9,
+            temp=0.1
+        )
+        return model, generator, files
+
+    @staticmethod
+    def get_list_files(history, mode, scores, files, partial_text):
+        if files:
+            partial_text += SOURCES_SEPARATOR
+            sources_text = [
+                f"{index}. {source}"
+                for index, source in enumerate(files, start=1)
+            ]
+            if scores and scores[0] < 4:
+                partial_text += "\n\n\n".join(sources_text)
+            elif scores and scores[0] > 4:
+                partial_text += sources_text[0]
+            history[-1][1] = partial_text
+        elif mode == Modes.DOC:
+            file = create_doc(partial_text, "Титова", "Сергея Сергеевича", "Руководитель отдела",
+                              "Отдел организационного развития")
+            partial_text += f'\n\n\nФайл: {file}'
+            history[-1][1] = partial_text
+        return history
+
     def bot(self, history, retrieved_docs, mode, uid, scores):
         """
 
@@ -318,37 +378,7 @@ class PrivateGptUi:
         if not history or not history[-1][0]:
             yield history[:-1]
             return
-        model = self._chat_service.llm
-        tokens = self.get_system_tokens(model)[:]
-        tokens.append(LINEBREAK_TOKEN)
-
-        for user_message, bot_message in history[-4:-1]:
-            message_tokens = self.get_message_tokens(model=model, role="user", content=user_message)
-            tokens.extend(message_tokens)
-
-        last_user_message = history[-1][0]
-        pattern = r'<a\s+[^>]*>(.*?)</a>'
-        files = re.findall(pattern, retrieved_docs)
-        for file in files:
-            retrieved_docs = re.sub(fr'<a\s+[^>]*>{file}</a>', file, retrieved_docs)
-        if retrieved_docs and mode:
-            last_user_message = f"Контекст: {retrieved_docs}\n\nИспользуя только контекст, ответь на вопрос: " \
-                                f"{last_user_message}"
-        message_tokens = self.get_message_tokens(model=model, role="user", content=last_user_message)
-        tokens.extend(message_tokens)
-        logger.info(f"Вопрос был полностью сформирован [uid - {uid}]")
-        f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Вопрос: {history[-1][0]} - "
-                       f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n")
-
-        role_tokens = [model.token_bos(), BOT_TOKEN, LINEBREAK_TOKEN]
-        tokens.extend(role_tokens)
-        generator = model.generate(
-            tokens,
-            top_k=80,
-            top_p=0.9,
-            temp=0.1
-        )
-
+        model, generator, files = self.get_message_generator(history, retrieved_docs, mode, uid)
         partial_text = ""
         logger.info(f"Начинается генерация ответа [uid - {uid}]")
         f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Ответ: ")
@@ -370,74 +400,7 @@ class PrivateGptUi:
             self.semaphore.release()
         f_logger.finfo(f" - [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n\n")
         logger.info(f"Генерация ответа закончена [uid - {uid}]")
-        if files:
-            partial_text += SOURCES_SEPARATOR
-            sources_text = [
-                f"{index}. {source}"
-                for index, source in enumerate(files, start=1)
-            ]
-            if scores and scores[0] < 4:
-                partial_text += "\n\n\n".join(sources_text)
-            elif scores and scores[0] > 4:
-                partial_text += sources_text[0]
-            history[-1][1] = partial_text
-        yield history
-        self._queue -= 1
-        self.semaphore.release()
-
-    def get_documents(self, history, uid):
-        logger.info(f"Подготовка к генерации ответа. Формирование полного вопроса на основе контекста и истории "
-                    f"[uid - {uid}]")
-        self.semaphore.acquire()
-        if not history or not history[-1][0]:
-            yield history[:-1]
-            return
-        model = self._chat_service.llm
-        tokens = self.get_system_tokens(model)[:]
-        tokens.append(LINEBREAK_TOKEN)
-
-        for user_message, bot_message in history[-4:-1]:
-            message_tokens = self.get_message_tokens(model=model, role="user", content=user_message)
-            tokens.extend(message_tokens)
-
-        last_user_message = history[-1][0]
-
-        last_user_message = f"{last_user_message}\n\n" \
-                            f"Если в контексте не указан год, то пиши {datetime.date.today().year}. " \
-                            f"Напиши ответ только так, без каких либо дополнений: " \
-                            f"Прошу предоставить ежегодный оплачиваемый отпуск с " \
-                            f"(дата начала отпуска в формате '%d.%m.%Y') по " \
-                            f"(дата окончания отпуска в формате '%d.%m.%Y')."
-
-        message_tokens = self.get_message_tokens(model=model, role="user", content=last_user_message)
-        tokens.extend(message_tokens)
-        role_tokens = [model.token_bos(), BOT_TOKEN, LINEBREAK_TOKEN]
-        tokens.extend(role_tokens)
-        generator = model.generate(
-            tokens,
-            top_k=80,
-            top_p=0.9,
-            temp=0.1
-        )
-
-        partial_text = ""
-        logger.info(f"Начинается генерация ответа [uid - {uid}]")
-        f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Ответ: ")
-        for i, token in enumerate(generator):
-            if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
-                break
-            letters = model.detokenize([token]).decode("utf-8", "ignore")
-            partial_text += letters
-            f_logger.finfo(letters)
-            history[-1][1] = partial_text
-            yield history
-        f_logger.finfo(f" - [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n\n")
-        logger.info(f"Генерация ответа закончена [uid - {uid}]")
-
-        file = create_doc(partial_text, "Титова", "Сергея Сергеевича", "Руководитель отдела",
-                          "Отдел организационного развития")
-        partial_text += f'\n\n\nФайл: {file}'
-        history[-1][1] = partial_text
+        history = self.get_list_files(history, mode, scores, files, partial_text)
         yield history
         self._queue -= 1
         self.semaphore.release()
@@ -445,11 +408,11 @@ class PrivateGptUi:
     def _chat(self, history, context, mode, uid, scores):
         match mode:
             case Modes.DB:
-                yield from self.bot(history, context, True, uid, scores)
+                yield from self.bot(history, context, Modes.DB, uid, scores)
             case Modes.LLM:
-                yield from self.bot(history, context, False, uid, scores)
+                yield from self.bot(history, context, Modes.LLM, uid, scores)
             case Modes.DOC:
-                yield from self.get_documents(history, uid)
+                yield from self.bot(history, context, Modes.DOC, uid, scores)
 
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
         logger.debug("Loading count=%s files", len(files))
