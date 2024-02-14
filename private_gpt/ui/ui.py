@@ -107,16 +107,6 @@ tr span {
 
 """
 
-JS = """
-function checkClassExists() {
-    if (!document.body.classList.contains("dark")) {
-        document.querySelector(".svelte-90oupt").style.background = "#e1e5e8";
-        document.querySelector(".svelte-nab2ao").style.background = "#e1e5e8";
-        document.querySelector(".svelte-1ed2p3z").style.background = "#ffffff";
-    }
-}
-"""
-
 
 class Modes:
     DB = MODES[0]
@@ -495,14 +485,15 @@ class PrivateGptUi:
             title=UI_TAB_TITLE,
             theme=gr.themes.Soft().set(
                 body_background_fill="white",
+                block_background_fill="#e1e5e8",
                 block_label_background_fill="#2042b9",
                 block_label_text_color="white",
                 checkbox_label_background_fill_selected="#1f419b",
                 input_background_fill="#e1e5e8",
-                button_primary_background_fill="#1f419b"
+                button_primary_background_fill="#1f419b",
+                shadow_drop_lg="5px 5px 5px 5px rgb(0 0 0 / 0.1)"
             ),
-            css=BLOCK_CSS,
-            js=JS
+            css=BLOCK_CSS
         ) as blocks:
             logo_svg = f'<img src="{FAVICON_PATH}" width="48px" style="display: inline">'
             gr.Markdown(
