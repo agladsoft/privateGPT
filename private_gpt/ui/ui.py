@@ -378,6 +378,7 @@ class PrivateGptUi:
         self.semaphore.acquire()
         if not history or not history[-1][0]:
             yield history[:-1]
+            self.semaphore.release()
             return
         model, generator, files = self.get_message_generator(history, retrieved_docs, mode, uid)
         partial_text = ""
