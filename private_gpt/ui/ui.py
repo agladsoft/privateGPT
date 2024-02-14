@@ -403,6 +403,7 @@ class PrivateGptUi:
         last_user_message = history[-1][0]
 
         last_user_message = f"{last_user_message}\n\n" \
+                            f"Если в контексте не указан год, то пиши {datetime.date.today().year}. " \
                             f"Напиши ответ только так, без каких либо дополнений: " \
                             f"Прошу предоставить ежегодный оплачиваемый отпуск с " \
                             f"(дата начала отпуска в формате '%d.%m.%Y') по " \
