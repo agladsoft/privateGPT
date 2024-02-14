@@ -321,12 +321,12 @@ class PrivateGptUi:
                                 f"{last_user_message}"
         elif mode == Modes.DOC:
             last_user_message = f"{last_user_message}\n\n" \
-                                f"Сегодня {datetime.datetime.now().today()} число. " \
+                                f"Сегодня {datetime.datetime.now().strftime('%d.%m.%Y')} число. " \
                                 f"Если в контексте не указан год, то пиши {datetime.date.today().year}. " \
                                 f"Напиши ответ только так, без каких либо дополнений: " \
                                 f"Прошу предоставить ежегодный оплачиваемый отпуск с " \
-                                f"(дата начала отпуска в формате DD.MM.YYYY) по " \
-                                f"(дата окончания отпуска в формате DD.MM.YYYY)."
+                                f"(дата начала отпуска в формате День.Месяц.Год) по " \
+                                f"(дата окончания отпуска в формате День.Месяц.Год)."
         message_tokens = self.get_message_tokens(model=model, role="user", content=last_user_message)
         tokens.extend(message_tokens)
         logger.info(f"Вопрос был полностью сформирован [uid - {uid}]")
