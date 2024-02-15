@@ -162,4 +162,7 @@ class IngestionHelperLangchain:
         loader_class, loader_args = LOADER_MAPPING[ext]
         loader = loader_class(file_name, **loader_args)
         logger.debug("Specific reader found for extension=%s", ext)
-        return loader.load()[0]
+        document = loader.load()[0]
+        document.page_content = re.sub(r'(\s{3,}|\n{3,})', lambda match: match.group()[0]*3,
+                                       document.page_content)
+        return document
