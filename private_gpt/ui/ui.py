@@ -566,17 +566,17 @@ class PrivateGptUi:
                     with gr.Tab(label="Параметры извлечения фрагментов из текста"):
                         limit = gr.Slider(
                             minimum=1,
-                            maximum=10,
-                            value=4,
+                            maximum=12,
+                            value=6,
                             step=1,
                             interactive=True,
                             label="Кол-во фрагментов для контекста"
                         )
                     with gr.Tab(label="Параметры нарезки"):
                         chunk_size = gr.Slider(
-                            minimum=50,
-                            maximum=1536,
-                            value=1200,
+                            minimum=128,
+                            maximum=1792,
+                            value=1792,
                             step=128,
                             interactive=True,
                             label="Размер фрагментов",
@@ -584,7 +584,7 @@ class PrivateGptUi:
                         chunk_overlap = gr.Slider(
                             minimum=0,
                             maximum=500,
-                            value=300,
+                            value=500,
                             step=10,
                             interactive=True,
                             label="Пересечение"
