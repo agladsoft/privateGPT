@@ -413,11 +413,11 @@ class PrivateGptUi:
     def _chat(self, history, context, mode, top_k, top_p, temp, uid, scores):
         match mode:
             case Modes.DB:
-                yield from self.bot(history, context, Modes.DB, uid, top_k, top_p, temp, scores)
+                yield from self.bot(history, context, Modes.DB, top_k, top_p, temp, uid, scores)
             case Modes.LLM:
-                yield from self.bot(history, context, Modes.LLM, uid, top_k, top_p, temp, scores)
+                yield from self.bot(history, context, Modes.LLM, top_k, top_p, temp, uid, scores)
             case Modes.DOC:
-                yield from self.bot(history, context, Modes.DOC, uid, top_k, top_p, temp, scores)
+                yield from self.bot(history, context, Modes.DOC, top_k, top_p, temp, uid, scores)
 
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
         logger.debug("Loading count=%s files", len(files))
