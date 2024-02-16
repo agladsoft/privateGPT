@@ -302,7 +302,7 @@ class PrivateGptUi:
         system_message: dict = {"role": "system", "content": self._system_prompt}
         return self.get_message_tokens(model, **system_message)
 
-    def get_message_generator(self, history, retrieved_docs, mode, uid):
+    def get_message_generator(self, history, retrieved_docs, mode, top_k, top_p, temp, uid):
         model = self._chat_service.llm
         tokens = self.get_system_tokens(model)[:]
         tokens.append(LINEBREAK_TOKEN)
@@ -337,9 +337,9 @@ class PrivateGptUi:
         tokens.extend(role_tokens)
         generator = model.generate(
             tokens,
-            top_k=80,
-            top_p=0.9,
-            temp=0.1
+            top_k=top_k,
+            top_p=top_p,
+            temp=temp
         )
         return model, generator, files
 
@@ -363,12 +363,15 @@ class PrivateGptUi:
             history[-1][1] = partial_text
         return history
 
-    def bot(self, history, retrieved_docs, mode, uid, scores):
+    def bot(self, history, retrieved_docs, mode, top_k, top_p, temp, uid, scores):
         """
 
         :param history:
         :param retrieved_docs:
         :param mode:
+        :param top_k:
+        :param top_p:
+        :param temp:
         :param uid:
         :param scores:
         :return:
@@ -380,7 +383,7 @@ class PrivateGptUi:
             yield history[:-1]
             self.semaphore.release()
             return
-        model, generator, files = self.get_message_generator(history, retrieved_docs, mode, uid)
+        model, generator, files = self.get_message_generator(history, retrieved_docs, mode, top_k, top_p, temp, uid)
         partial_text = ""
         logger.info(f"Начинается генерация ответа [uid - {uid}]")
         f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Ответ: ")
@@ -407,14 +410,14 @@ class PrivateGptUi:
         self._queue -= 1
         self.semaphore.release()
 
-    def _chat(self, history, context, mode, uid, scores):
+    def _chat(self, history, context, mode, top_k, top_p, temp, uid, scores):
         match mode:
             case Modes.DB:
-                yield from self.bot(history, context, Modes.DB, uid, scores)
+                yield from self.bot(history, context, Modes.DB, uid, top_k, top_p, temp, scores)
             case Modes.LLM:
-                yield from self.bot(history, context, Modes.LLM, uid, scores)
+                yield from self.bot(history, context, Modes.LLM, uid, top_k, top_p, temp, scores)
             case Modes.DOC:
-                yield from self.bot(history, context, Modes.DOC, uid, scores)
+                yield from self.bot(history, context, Modes.DOC, uid, top_k, top_p, temp, scores)
 
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
         logger.debug("Loading count=%s files", len(files))
@@ -589,6 +592,31 @@ class PrivateGptUi:
                             interactive=True,
                             label="Пересечение"
                         )
+                    with gr.Tab(label="Параметры генерации"):
+                        top_p = gr.Slider(
+                            minimum=0.0,
+                            maximum=1.0,
+                            value=0.9,
+                            step=0.05,
+                            interactive=True,
+                            label="Top-p",
+                        )
+                        top_k = gr.Slider(
+                            minimum=10,
+                            maximum=100,
+                            value=80,
+                            step=5,
+                            interactive=True,
+                            label="Top-k",
+                        )
+                        temp = gr.Slider(
+                            minimum=0.0,
+                            maximum=2.0,
+                            value=0.1,
+                            step=0.1,
+                            interactive=True,
+                            label="Temp"
+                        )
 
                 with gr.Accordion("Системный промпт", open=False):
                     system_prompt_input = gr.Textbox(
@@ -650,7 +678,7 @@ class PrivateGptUi:
                 queue=True,
             ).success(
                 fn=self._chat,
-                inputs=[chatbot, content, mode, uid, scores],
+                inputs=[chatbot, content, mode, top_k, top_p, temp, uid, scores],
                 outputs=[chatbot],
                 queue=True,
             ).success(
@@ -673,7 +701,7 @@ class PrivateGptUi:
                 queue=True,
             ).success(
                 fn=self._chat,
-                inputs=[chatbot, content, mode, uid, scores],
+                inputs=[chatbot, content, mode, top_k, top_p, temp, uid, scores],
                 outputs=[chatbot],
                 queue=True,
             ).success(
