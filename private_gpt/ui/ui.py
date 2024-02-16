@@ -351,9 +351,10 @@ class PrivateGptUi:
                 f"{index}. {source}"
                 for index, source in enumerate(files, start=1)
             ]
-            if scores and scores[0] < 4:
+            threshold = 0.44
+            if scores and scores[0] < threshold:
                 partial_text += "\n\n\n".join(sources_text)
-            elif scores and scores[0] > 4:
+            elif scores and scores[0] >= threshold:
                 partial_text += sources_text[0]
             history[-1][1] = partial_text
         elif mode == Modes.DOC:
