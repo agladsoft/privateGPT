@@ -395,7 +395,7 @@ class PrivateGptUi:
                 yield history
         except Exception as ex:
             logger.error(f"Error - {ex}")
-            partial_text += "Слишком большой контекст. " \
+            partial_text += "\nСлишком большой контекст. " \
                             "Попробуйте уменьшить его или измените количество выдаваемого контекста в настройках"
             history[-1][1] = partial_text
             yield history
@@ -576,15 +576,15 @@ class PrivateGptUi:
                         chunk_size = gr.Slider(
                             minimum=128,
                             maximum=1792,
-                            value=1792,
+                            value=1408,
                             step=128,
                             interactive=True,
                             label="Размер фрагментов",
                         )
                         chunk_overlap = gr.Slider(
                             minimum=0,
-                            maximum=500,
-                            value=500,
+                            maximum=400,
+                            value=400,
                             step=10,
                             interactive=True,
                             label="Пересечение"
