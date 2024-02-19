@@ -28,6 +28,7 @@ pdfminer-six = "20221105"
 gradio = "4.10.0"
 sentence-transformers = "2.2.2"
 tinydb = "4.8.0"
+spacy = "3.7.4"
 
 [tool.poetry.group.dev.dependencies]
 black = "^22"

@@ -24,7 +24,7 @@ from langchain.document_loaders import (
 )
 from typing import Optional, List, Union, Tuple
 from langchain.docstore.document import Document
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.text_splitter import SpacyTextSplitter
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +132,7 @@ class IngestionHelperLangchain:
 
     @staticmethod
     def transform_file_into_documents(
-        load_documents: List[Document], text_splitter: RecursiveCharacterTextSplitter
+        load_documents: List[Document], text_splitter: SpacyTextSplitter
     ) -> tuple[str, list[Document]]:
         def process_text(text: str) -> Optional[str]:
             """

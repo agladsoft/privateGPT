@@ -59,6 +59,8 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry install --with local
 RUN poetry install --with ui
 
+RUN python3 -m spacy download ru_core_news_md
+
 
 FROM base as app
 

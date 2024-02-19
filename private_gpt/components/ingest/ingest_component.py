@@ -18,7 +18,7 @@ import chromadb
 from typing import Union, List
 from langchain.vectorstores import Chroma
 from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.text_splitter import SpacyTextSplitter
 from private_gpt.components.ingest.ingest_helper import IngestionHelperLangchain
 from private_gpt.components.embedding.embedding_component import EmbeddingComponent
 
@@ -101,8 +101,8 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
         load_documents: List[Document] = [
             IngestionHelperLangchain._load_file_to_documents(path) for path in [file_name]
         ]
-        text_splitter: RecursiveCharacterTextSplitter = RecursiveCharacterTextSplitter(
-            chunk_size=chunk_size, chunk_overlap=chunk_overlap
+        text_splitter = SpacyTextSplitter(
+            pipeline="ru_core_news_md", chunk_size=chunk_size, chunk_overlap=chunk_overlap
         )
         message, documents = IngestionHelperLangchain.transform_file_into_documents(load_documents, text_splitter)
         ids: List[str] = [
@@ -120,8 +120,8 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
         load_documents: List[Document] = [
             IngestionHelperLangchain._load_file_to_documents(path) for path in files
         ]
-        text_splitter: RecursiveCharacterTextSplitter = RecursiveCharacterTextSplitter(
-            chunk_size=chunk_size, chunk_overlap=chunk_overlap
+        text_splitter = SpacyTextSplitter(
+            pipeline="ru_core_news_md", chunk_size=chunk_size, chunk_overlap=chunk_overlap
         )
         message, documents = IngestionHelperLangchain.transform_file_into_documents(load_documents, text_splitter)
         ids: List[str] = [
