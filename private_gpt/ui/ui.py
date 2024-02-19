@@ -4,8 +4,8 @@ import logging
 import os.path
 import threading
 from pathlib import Path
-from typing import Any, List
-
+from typing import Any, List, Literal
+from gradio.queueing import Queue, Event
 import gradio as gr  # type: ignore
 from fastapi import FastAPI
 from gradio.themes.utils.colors import slate  # type: ignore
@@ -26,6 +26,7 @@ import uuid
 import tempfile
 import pandas as pd
 from tinydb import TinyDB, where
+from gradio_client.documentation import document
 from private_gpt.templates.template import create_doc
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -44,7 +45,7 @@ THIS_DIRECTORY_RELATIVE = Path(__file__).parent.relative_to(PROJECT_ROOT_PATH)
 # Should be "private_gpt/ui/avatar-bot.ico"
 AVATAR_USER = THIS_DIRECTORY_RELATIVE / "icons8-человек-96.png"
 AVATAR_BOT = THIS_DIRECTORY_RELATIVE / "icons8-bot-96.png"
-js = """
+JS = """
 function disable_btn() {
     var elements = document.getElementsByClassName('wrap default minimal svelte-1occ011 translucent');
 
@@ -104,20 +105,60 @@ tr span {
 
 """
 
-JS = """
-function checkClassExists() {
-    if (!document.body.classList.contains("dark")) {
-        document.querySelector(".user").style.background = "#2042b9";
-        document.querySelector(".user").style.color = "white";
-    }
-}
-"""
-
 
 class Modes:
     DB = MODES[0]
     LLM = MODES[1]
     DOC = MODES[2]
+
+
+class Blocks(gr.Blocks):
+    from gradio.themes import ThemeClass as Theme
+
+    def __init__(self,
+                 theme: Theme | str | None = None,
+                 analytics_enabled: bool | None = None,
+                 mode: str = "blocks",
+                 title: str = "Gradio",
+                 css: str | None = None,
+                 js: str | None = None,
+                 head: str | None = None
+                 ):
+        super().__init__(theme, analytics_enabled, mode, title, css, js, head)
+
+    @document()
+    def queue(
+            self,
+            status_update_rate: float | Literal["auto"] = "auto",
+            api_open: bool | None = None,
+            max_size: int | None = None,
+            concurrency_count: int | None = None,
+            *,
+            default_concurrency_limit: int | None | Literal["not_set"] = "not_set",
+    ):
+        from gradio import utils, routes
+
+        if concurrency_count:
+            raise DeprecationWarning(
+                "concurrency_count has been deprecated. Set the concurrency_limit directly on event listeners "
+                "e.g. btn.click(fn, ..., concurrency_limit=10) or gr.Interface(concurrency_limit=10). "
+                "If necessary, the total number of workers can be configured via `max_threads` in launch()."
+            )
+        if api_open is not None:
+            self.api_open = api_open
+        if utils.is_zero_gpu_space():
+            max_size = 1 if max_size is None else max_size
+        self._queue = Queue(
+            live_updates=status_update_rate == "auto",
+            concurrency_count=self.max_threads,
+            update_intervals=status_update_rate if status_update_rate != "auto" else 1,
+            max_size=max_size,
+            block_fns=self.fns,
+            default_concurrency_limit=default_concurrency_limit,
+        )
+        self.config = self.get_config_file()
+        self.app = routes.App.create_app(self)
+        return self
 
 
 class Source(BaseModel):
@@ -146,12 +187,14 @@ class Source(BaseModel):
 
 @singleton
 class PrivateGptUi:
+    semaphore = threading.Semaphore()
+
     @inject
     def __init__(
-        self,
-        ingest_service: IngestService,
-        chat_service: ChatService,
-        chunks_service: ChunksService,
+            self,
+            ingest_service: IngestService,
+            chat_service: ChatService,
+            chunks_service: ChunksService,
     ) -> None:
         self._ingest_service = ingest_service
         self._chat_service = chat_service
@@ -160,8 +203,6 @@ class PrivateGptUi:
         # Cache the UI blocks
         self._ui_block = None
         self._queue = 0
-
-        self.semaphore = threading.Semaphore()
 
         # Initialize system prompt based on default mode
         self.mode = MODES[0]
@@ -425,7 +466,7 @@ class PrivateGptUi:
         message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
         return message, self._list_ingested_files()
 
-    def get_analytics(self):
+    def get_analytics(self) -> pd.DataFrame:
         try:
             return pd.DataFrame(self.tiny_db.all()).sort_values('Старт обработки запроса', ascending=False)
         except KeyError:
@@ -457,24 +498,24 @@ class PrivateGptUi:
 
     def _build_ui_blocks(self) -> gr.Blocks:
         logger.debug("Creating the UI blocks")
-        with gr.Blocks(
-            title=UI_TAB_TITLE,
-            theme=gr.themes.Soft().set(
-                body_background_fill="white",
-                block_background_fill="#e1e5e8",
-                block_label_background_fill="#2042b9",
-                block_label_background_fill_dark="#2042b9",
-                block_label_text_color="white",
-                checkbox_label_background_fill_selected="#1f419b",
-                checkbox_label_background_fill_selected_dark="#1f419b",
-                checkbox_background_color_selected="#111d3d",
-                checkbox_background_color_selected_dark="#111d3d",
-                input_background_fill="#e1e5e8",
-                button_primary_background_fill="#1f419b",
-                button_primary_background_fill_dark="#1f419b",
-                shadow_drop_lg="5px 5px 5px 5px rgb(0 0 0 / 0.1)"
-            ),
-            css=BLOCK_CSS
+        with Blocks(
+                title=UI_TAB_TITLE,
+                theme=gr.themes.Soft().set(
+                    body_background_fill="white",
+                    block_background_fill="#e1e5e8",
+                    block_label_background_fill="#2042b9",
+                    block_label_background_fill_dark="#2042b9",
+                    block_label_text_color="white",
+                    checkbox_label_background_fill_selected="#1f419b",
+                    checkbox_label_background_fill_selected_dark="#1f419b",
+                    checkbox_background_color_selected="#111d3d",
+                    checkbox_background_color_selected_dark="#111d3d",
+                    input_background_fill="#e1e5e8",
+                    button_primary_background_fill="#1f419b",
+                    button_primary_background_fill_dark="#1f419b",
+                    shadow_drop_lg="5px 5px 5px 5px rgb(0 0 0 / 0.1)"
+                ),
+                css=BLOCK_CSS
         ) as blocks:
             logo_svg = f'<img src="{FAVICON_PATH}" width="48px" style="display: inline">'
             gr.Markdown(
@@ -734,7 +775,7 @@ class PrivateGptUi:
                 inputs=None,
                 outputs=chatbot,
                 queue=False,
-                js=js
+                js=JS
             )
 
         return blocks
@@ -749,6 +790,35 @@ class PrivateGptUi:
         blocks.queue()
         logger.info("Mounting the gradio UI, at path=%s", path)
         gr.mount_gradio_app(app, blocks, path=path)
+
+
+class Queue(Queue):
+    from gradio.blocks import BlockFunction
+
+    def __init__(
+            self,
+            live_updates: bool,
+            concurrency_count: int,
+            update_intervals: float,
+            max_size: int | None,
+            block_fns: list[BlockFunction],
+            default_concurrency_limit: int | None | Literal["not_set"] = "not_set"
+    ):
+        super().__init__(live_updates, concurrency_count, update_intervals, max_size, block_fns,
+                         default_concurrency_limit)
+
+    def send_message(
+            self,
+            event: Event,
+            message_type: str,
+            data: dict | None = None,
+    ):
+        data = {} if data is None else data
+        messages = self.pending_messages_per_session.get(event.session_hash)
+        if messages:
+            messages.put_nowait({"msg": message_type, "event_id": event._id, **data})
+        else:
+            PrivateGptUi.semaphore.release()
 
 
 if __name__ == "__main__":
