@@ -80,6 +80,6 @@ COPY fern/ fern
 COPY *.yaml *.md ./
 COPY pyproject.toml poetry.lock ./
 
-RUN python3 -m spacy download ru_core_news_md
+RUN .venv/bin/python3 -m spacy download ru_core_news_md
 
 ENTRYPOINT .venv/bin/python3 -m private_gpt
