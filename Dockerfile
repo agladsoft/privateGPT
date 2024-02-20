@@ -59,7 +59,7 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry install --with local
 RUN poetry install --with ui
 
-RUN poetry add spacy==3.7.4
+RUN pip install spacy==3.7.4
 
 RUN python3 -m spacy download ru_core_news_md
 
