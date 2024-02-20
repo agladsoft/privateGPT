@@ -61,8 +61,6 @@ RUN poetry install --with ui
 
 RUN pip install spacy==3.7.4
 
-RUN python3 -m spacy download ru_core_news_md
-
 
 FROM base as app
 
@@ -81,5 +79,7 @@ COPY scripts/setup setup
 COPY fern/ fern
 COPY *.yaml *.md ./
 COPY pyproject.toml poetry.lock ./
+
+RUN python3 -m spacy download ru_core_news_md
 
 ENTRYPOINT .venv/bin/python3 -m private_gpt
