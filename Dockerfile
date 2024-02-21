@@ -59,8 +59,6 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry install --with local
 RUN poetry install --with ui
 
-RUN pip install spacy==3.7.4
-
 
 FROM base as app
 
