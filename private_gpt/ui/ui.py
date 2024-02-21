@@ -478,7 +478,7 @@ class PrivateGptUi:
         ) as blocks:
             logo_svg = f'<img src="{FAVICON_PATH}" width="48px" style="display: inline">'
             gr.Markdown(
-                f"""<h1><center>{logo_svg} Я, Макар - виртуальный ассистент Рускон</center></h1>"""
+                f"""<h1><center>{logo_svg} Виртуальный ассистент Рускон</center></h1>"""
             )
             uid = gr.State(None)
             scores = gr.State(None)
