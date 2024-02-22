@@ -460,7 +460,7 @@ class PrivateGptUi:
         f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Ответ: ")
         if message := self.get_dates_in_question(history, model, generator, mode):
             model, generator, files = self.get_message_generator(message, retrieved_docs, mode, top_k, top_p, temp, uid)
-        else:
+        elif mode == Modes.DOC:
             model, generator, files = self.get_message_generator(history, retrieved_docs, mode, top_k, top_p, temp, uid)
         try:
             for i, token in enumerate(generator):
