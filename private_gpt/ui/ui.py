@@ -458,8 +458,7 @@ class PrivateGptUi:
         partial_text = ""
         logger.info(f"Начинается генерация ответа [uid - {uid}]")
         f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Ответ: ")
-        message = self.get_dates_in_question(history, model, generator, mode)
-        if message:
+        if message := self.get_dates_in_question(history, model, generator, mode):
             model, generator, files = self.get_message_generator(message, retrieved_docs, mode, top_k, top_p, temp, uid)
         else:
             model, generator, files = self.get_message_generator(history, retrieved_docs, mode, top_k, top_p, temp, uid)
