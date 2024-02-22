@@ -192,6 +192,8 @@ class Source(BaseModel):
 
 @singleton
 class PrivateGptUi:
+    semaphore = threading.Semaphore()
+
     @inject
     def __init__(
         self,
@@ -206,8 +208,6 @@ class PrivateGptUi:
         # Cache the UI blocks
         self._ui_block = None
         self._queue = 0
-
-        self.semaphore = threading.Semaphore()
 
         # Initialize system prompt based on default mode
         self.mode = MODES[0]
