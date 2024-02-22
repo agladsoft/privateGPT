@@ -4,10 +4,6 @@ from datetime import datetime
 from private_gpt.constants import PROJECT_ROOT_PATH
 
 
-def build_form(message):
-    pass
-
-
 def create_doc(message, surname, name, post, department):
     doc = docx.Document()
     doc.add_paragraph("Генеральному директору").alignment = 2

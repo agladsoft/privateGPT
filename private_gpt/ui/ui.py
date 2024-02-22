@@ -4,11 +4,14 @@ import logging
 import os.path
 import threading
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Literal
 
 import gradio as gr  # type: ignore
 from fastapi import FastAPI
+from gradio.queueing import Queue, Event
 from gradio.themes.utils.colors import slate  # type: ignore
+from gradio.blocks import BlockFunction
+from gradio_client.documentation import document
 from injector import inject, singleton
 from pydantic import BaseModel
 
@@ -44,7 +47,7 @@ THIS_DIRECTORY_RELATIVE = Path(__file__).parent.relative_to(PROJECT_ROOT_PATH)
 # Should be "private_gpt/ui/avatar-bot.ico"
 AVATAR_USER = THIS_DIRECTORY_RELATIVE / "icons8-человек-96.png"
 AVATAR_BOT = THIS_DIRECTORY_RELATIVE / "icons8-bot-96.png"
-js = """
+JS = """
 function disable_btn() {
     var elements = document.getElementsByClassName('wrap default minimal svelte-1occ011 translucent');
 
@@ -104,20 +107,63 @@ tr span {
 
 """
 
-JS = """
-function checkClassExists() {
-    if (!document.body.classList.contains("dark")) {
-        document.querySelector(".user").style.background = "#2042b9";
-        document.querySelector(".user").style.color = "white";
-    }
-}
-"""
-
 
 class Modes:
     DB = MODES[0]
     LLM = MODES[1]
     DOC = MODES[2]
+
+
+class Blocks(gr.Blocks):
+    from gradio.themes import ThemeClass as Theme
+
+    def __init__(self,
+                 theme: Theme | str | None = None,
+                 analytics_enabled: bool | None = None,
+                 mode: str = "blocks",
+                 title: str = "Gradio",
+                 css: str | None = None,
+                 js: str | None = None,
+                 head: str | None = None
+                 ):
+        super().__init__(theme, analytics_enabled, mode, title, css, js, head)
+        self.app = None
+        self.config = None
+        self._queue = None
+
+    @document()
+    def queue(
+            self,
+            status_update_rate: float | Literal["auto"] = "auto",
+            api_open: bool | None = None,
+            max_size: int | None = None,
+            concurrency_count: int | None = None,
+            *,
+            default_concurrency_limit: int | None | Literal["not_set"] = "not_set",
+    ):
+        from gradio import utils, routes
+
+        if concurrency_count:
+            raise DeprecationWarning(
+                "concurrency_count has been deprecated. Set the concurrency_limit directly on event listeners "
+                "e.g. btn.click(fn, ..., concurrency_limit=10) or gr.Interface(concurrency_limit=10). "
+                "If necessary, the total number of workers can be configured via `max_threads` in launch()."
+            )
+        if api_open is not None:
+            self.api_open = api_open
+        if utils.is_zero_gpu_space():
+            max_size = 1 if max_size is None else max_size
+        self._queue = Queue(
+            live_updates=status_update_rate == "auto",
+            concurrency_count=self.max_threads,
+            update_intervals=status_update_rate if status_update_rate != "auto" else 1,
+            max_size=max_size,
+            block_fns=self.fns,
+            default_concurrency_limit=default_concurrency_limit,
+        )
+        self.config = self.get_config_file()
+        self.app = routes.App.create_app(self)
+        return self
 
 
 class Source(BaseModel):
@@ -197,7 +243,6 @@ class PrivateGptUi:
     # to the default prompt based on the mode (and user settings).
     @staticmethod
     def _get_default_system_prompt(mode: str) -> str:
-        p = ""
         match mode:
             # For query chat mode, obtain default system prompt from settings
             case Modes.DB:
@@ -344,6 +389,32 @@ class PrivateGptUi:
         return model, generator, files
 
     @staticmethod
+    def calculate_end_date(history):
+        long_days = re.findall(r"\d{1,4} д", history[-1][0])
+        list_dates = []
+        for day in long_days:
+            day = int(day.replace(" д", ""))
+            start_dates = re.findall(r"\d{1,2}[.]\d{1,2}[.]\d{2,4}", history[-1][1])
+            for date in start_dates:
+                list_dates.append(date)
+                end_date = datetime.datetime.strptime(date, '%d.%m.%Y') + datetime.timedelta(days=day)
+                end_date = end_date.strftime('%d.%m.%Y')
+                list_dates.append(end_date)
+                return [[f"Начало отпуска - {list_dates[0]}. Конец отпуска - {list_dates[1]}", None]]
+
+    def get_dates_in_question(self, history, model, generator, mode):
+        partial_text = ""
+        if mode == Modes.DOC:
+            for i, token in enumerate(generator):
+                if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
+                    break
+                letters = model.detokenize([token]).decode("utf-8", "ignore")
+                partial_text += letters
+                f_logger.finfo(letters)
+                history[-1][1] = partial_text
+            return self.calculate_end_date(history)
+
+    @staticmethod
     def get_list_files(history, mode, scores, files, partial_text):
         if files:
             partial_text += SOURCES_SEPARATOR
@@ -388,6 +459,9 @@ class PrivateGptUi:
         partial_text = ""
         logger.info(f"Начинается генерация ответа [uid - {uid}]")
         f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Ответ: ")
+        message = self.get_dates_in_question(history, model, generator, mode)
+        if message:
+            model, generator, files = self.get_message_generator(message, retrieved_docs, mode, top_k, top_p, temp, uid)
         try:
             for i, token in enumerate(generator):
                 if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
@@ -457,7 +531,7 @@ class PrivateGptUi:
 
     def _build_ui_blocks(self) -> gr.Blocks:
         logger.debug("Creating the UI blocks")
-        with gr.Blocks(
+        with Blocks(
             title=UI_TAB_TITLE,
             theme=gr.themes.Soft().set(
                 body_background_fill="white",
@@ -734,7 +808,7 @@ class PrivateGptUi:
                 inputs=None,
                 outputs=chatbot,
                 queue=False,
-                js=js
+                js=JS
             )
 
         return blocks
@@ -749,6 +823,33 @@ class PrivateGptUi:
         blocks.queue()
         logger.info("Mounting the gradio UI, at path=%s", path)
         gr.mount_gradio_app(app, blocks, path=path)
+
+
+class Queue(Queue):
+    def __init__(
+            self,
+            live_updates: bool,
+            concurrency_count: int,
+            update_intervals: float,
+            max_size: int | None,
+            block_fns: list[BlockFunction],
+            default_concurrency_limit: int | None | Literal["not_set"] = "not_set"
+    ):
+        super().__init__(live_updates, concurrency_count, update_intervals, max_size, block_fns,
+                         default_concurrency_limit)
+
+    def send_message(
+            self,
+            event: Event,
+            message_type: str,
+            data: dict | None = None,
+    ):
+        data = {} if data is None else data
+        messages = self.pending_messages_per_session.get(event.session_hash)
+        if messages:
+            messages.put_nowait({"msg": message_type, "event_id": event._id, **data})
+        else:
+            PrivateGptUi.semaphore.release()
 
 
 if __name__ == "__main__":
