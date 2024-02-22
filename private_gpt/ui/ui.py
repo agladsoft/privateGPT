@@ -5,13 +5,11 @@ import os.path
 import threading
 from pathlib import Path
 from typing import Any, List, Literal
-
+from gradio.queueing import Queue, Event
 import gradio as gr  # type: ignore
 from fastapi import FastAPI
-from gradio.queueing import Queue, Event
 from gradio.themes.utils.colors import slate  # type: ignore
 from gradio.blocks import BlockFunction
-from gradio_client.documentation import document
 from injector import inject, singleton
 from pydantic import BaseModel
 
@@ -29,6 +27,7 @@ import uuid
 import tempfile
 import pandas as pd
 from tinydb import TinyDB, where
+from gradio_client.documentation import document
 from private_gpt.templates.template import create_doc
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -462,6 +461,8 @@ class PrivateGptUi:
         message = self.get_dates_in_question(history, model, generator, mode)
         if message:
             model, generator, files = self.get_message_generator(message, retrieved_docs, mode, top_k, top_p, temp, uid)
+        else:
+            model, generator, files = self.get_message_generator(history, retrieved_docs, mode, top_k, top_p, temp, uid)
         try:
             for i, token in enumerate(generator):
                 if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
