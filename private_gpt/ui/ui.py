@@ -5,6 +5,7 @@ import os.path
 import threading
 from pathlib import Path
 from typing import Any, List, Literal
+import requests
 from gradio.queueing import Queue, Event
 import gradio as gr  # type: ignore
 from fastapi import FastAPI
@@ -27,6 +28,7 @@ import uuid
 import tempfile
 import pandas as pd
 from tinydb import TinyDB, where
+from fastapi.testclient import TestClient
 from gradio_client.documentation import document
 from private_gpt.templates.template import create_doc
 
@@ -212,6 +214,31 @@ class PrivateGptUi:
         self.mode = MODES[0]
         self._system_prompt = self._get_default_system_prompt(self.mode)
         self.tiny_db = TinyDB(f'{DATA_QUESTIONS}/tiny_db.json', indent=4, ensure_ascii=False)
+
+    def load_model(self, model_name):
+        """
+
+        :param model_name:
+        :return:
+        """
+        from llama_cpp import Llama
+        from private_gpt.paths import models_path
+        from huggingface_hub.file_download import http_get
+
+        model = os.path.basename(model_name)
+        path = str(models_path / model)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        if not os.path.exists(path):
+            with open(path, "wb") as f:
+                http_get(f"https://huggingface.co/{os.path.dirname(model_name)}/resolve/main/{model}", f)
+
+        self._chat_service.llm = Llama(
+            n_gpu_layers=43,
+            model_path=path,
+            n_ctx=settings().llm.context_window,
+            n_parts=1
+        )
+        return model_name
 
     def _get_context(self, history: list[list[str]], mode: str, limit, uid, *_: Any):
         match mode:
@@ -505,6 +532,24 @@ class PrivateGptUi:
         except KeyError:
             return pd.DataFrame(self.tiny_db.all())
 
+    @staticmethod
+    def login(username: str = "timur", password: str = "12345678") -> bool:
+        """
+
+        :param username:
+        :param password:
+        :return:
+        """
+        import csv
+
+        AUTH_FILE = os.path.join(PROJECT_ROOT_PATH, "server/utils/auth.csv")
+        with open(AUTH_FILE) as f:
+            file_data: csv.reader = csv.reader(f)
+            headers: list[str] = next(file_data)
+            users: list[dict[str, str]] = [dict(zip(headers, i)) for i in file_data]
+        user_from_db = list(filter(lambda user: user["username"] == username and user["password"] == password, users))
+        return bool(user_from_db)
+
     def calculate_analytics(self, messages, analyse=None):
         message = messages[-1][0] if messages else None
         answer = messages[-1][1] if message else None
@@ -631,9 +676,9 @@ class PrivateGptUi:
 
             with gr.Tab("Настройки"):
                 with gr.Row(elem_id="model_selector_row"):
-                    models: list = list([f"{settings().local.llm_hf_repo_id.split('/')[1]}/"
-                                         f"{settings().local.llm_hf_model_file}"])
-                    gr.Dropdown(
+                    models: list = [f"{repo}/{model}" for repo, model in
+                                    zip(settings().local.llm_hf_repo_id, settings().local.llm_hf_model_file)]
+                    model_selector = gr.Dropdown(
                         choices=models,
                         value=models[0],
                         interactive=True,
@@ -727,6 +772,12 @@ class PrivateGptUi:
                 self._set_current_mode, inputs=mode, outputs=system_prompt_input
             )
 
+            model_selector.change(
+                fn=self.load_model,
+                inputs=[model_selector],
+                outputs=[model_selector]
+            )
+
             upload_button.upload(
                 self._upload_file,
                 inputs=[upload_button, chunk_size, chunk_overlap],
@@ -810,7 +861,8 @@ class PrivateGptUi:
                 queue=False,
                 js=JS
             )
-
+            # blocks.auth = self.login
+            # blocks.auth_message = "Введите логин и пароль, чтобы войти"
         return blocks
 
     def get_ui_blocks(self) -> gr.Blocks:

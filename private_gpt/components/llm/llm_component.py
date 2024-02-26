@@ -23,13 +23,13 @@ class LLMComponent:
         logger.info("Initializing the LLM in mode=%s", llm_mode)
         match settings.llm.mode:
             case "local":
-                path = str(models_path / settings.local.llm_hf_model_file)
+                path = str(models_path / settings.local.llm_hf_model_file[0])
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 if not os.path.exists(path):
                     with open(path, "wb") as f:
                         http_get(
-                            f"https://huggingface.co/{settings.local.llm_hf_repo_id}/resolve/main/"
-                            f"{settings.local.llm_hf_model_file}",
+                            f"https://huggingface.co/{settings.local.llm_hf_repo_id[0]}/resolve/main/"
+                            f"{settings.local.llm_hf_model_file[0]}",
                             f
                         )
 
