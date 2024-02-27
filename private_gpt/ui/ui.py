@@ -701,7 +701,7 @@ class PrivateGptUi:
                     logger.info(f"Path model is {os.path.basename(self._chat_service.llm.model_path)}")
                     model_selector = gr.Dropdown(
                         choices=models,
-                        value=[os.path.basename(self._chat_service.llm.model_path)],
+                        value=os.path.basename(self._chat_service.llm.model_path),
                         interactive=True,
                         show_label=False,
                         container=False,
