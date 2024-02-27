@@ -207,7 +207,7 @@ class PrivateGptUi:
         self._chat_service = chat_service
         self._chunks_service = chunks_service
 
-        # self._chat_service.llm = self.initialization()
+        self._chat_service.llm = self.initialization()
 
         # Cache the UI blocks
         self._ui_block = None
@@ -699,6 +699,7 @@ class PrivateGptUi:
                 with gr.Row(elem_id="model_selector_row"):
                     models: list = [f"{repo}/{model}" for repo, model in
                                     zip(settings().local.llm_hf_repo_id, settings().local.llm_hf_model_file)]
+                    logger.info("Path", os.path.basename(self._chat_service.llm.model_path))
                     model_selector = gr.Dropdown(
                         choices=models,
                         value=os.path.basename(self._chat_service.llm.model_path),
