@@ -703,7 +703,7 @@ class PrivateGptUi:
                                     zip(settings().local.llm_hf_repo_id, settings().local.llm_hf_model_file)]
                     model_selector = gr.Dropdown(
                         choices=models,
-                        value=models[0],
+                        value=self._chat_service.llm.model,
                         interactive=True,
                         show_label=False,
                         container=False,
