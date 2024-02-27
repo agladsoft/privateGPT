@@ -207,7 +207,7 @@ class PrivateGptUi:
         self._chat_service = chat_service
         self._chunks_service = chunks_service
 
-        self._chat_service.llm = self.initialization()
+        # self._chat_service.llm = self.initialization()
 
         # Cache the UI blocks
         self._ui_block = None

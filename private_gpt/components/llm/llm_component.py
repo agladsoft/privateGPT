@@ -33,7 +33,12 @@ class LLMComponent:
                             f
                         )
 
-                self.llm = None
+                self.llm = Llama(
+                    n_gpu_layers=43,
+                    model_path=path,
+                    n_ctx=settings.llm.context_window,
+                    n_parts=1
+                )
 
             # case "sagemaker":
             #     from private_gpt.components.llm.custom.sagemaker import SagemakerLLM
