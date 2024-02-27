@@ -5,7 +5,6 @@ import os.path
 import threading
 from pathlib import Path
 from typing import Any, List, Literal
-import requests
 from gradio.queueing import Queue, Event
 import gradio as gr  # type: ignore
 from fastapi import FastAPI
@@ -215,10 +214,11 @@ class PrivateGptUi:
         self._system_prompt = self._get_default_system_prompt(self.mode)
         self.tiny_db = TinyDB(f'{DATA_QUESTIONS}/tiny_db.json', indent=4, ensure_ascii=False)
 
-    def load_model(self, model_name):
+    def load_model(self, model_name, processes):
         """
 
         :param model_name:
+        :param processes:
         :return:
         """
         from llama_cpp import Llama
@@ -232,8 +232,9 @@ class PrivateGptUi:
             with open(path, "wb") as f:
                 http_get(f"https://huggingface.co/{os.path.dirname(model_name)}/resolve/main/{model}", f)
 
+        del self._chat_service.llm
         self._chat_service.llm = Llama(
-            n_gpu_layers=43,
+            n_gpu_layers=43 if processes == "GPU" else 0,
             model_path=path,
             n_ctx=settings().llm.context_window,
             n_parts=1
@@ -685,6 +686,12 @@ class PrivateGptUi:
                         show_label=False,
                         container=False,
                     )
+                with gr.Row():
+                    processes = gr.Radio(
+                        ["GPU", "CPU"],
+                        value="GPU",
+                        show_label=False
+                    )
                 with gr.Accordion("Параметры", open=False):
                     with gr.Tab(label="Параметры извлечения фрагментов из текста"):
                         limit = gr.Slider(
@@ -772,9 +779,13 @@ class PrivateGptUi:
                 self._set_current_mode, inputs=mode, outputs=system_prompt_input
             )
 
+            processes.change(
+                fn=lambda c: c, inputs=[processes]
+            )
+
             model_selector.change(
                 fn=self.load_model,
-                inputs=[model_selector],
+                inputs=[model_selector, processes],
                 outputs=[model_selector]
             )
 
