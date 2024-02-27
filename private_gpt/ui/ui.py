@@ -70,7 +70,6 @@ UI_TAB_TITLE = "MakarGPT"
 SOURCES_SEPARATOR = "\n\n Документы: \n"
 
 MODES = ["ВНД", "Свободное общение", "Получение документов"]
-PROCESSES = ["GPU", "CPU"]
 MAX_NEW_TOKENS: int = 1500
 LINEBREAK_TOKEN: int = 13
 SYSTEM_TOKEN: int = 1788
@@ -238,11 +237,10 @@ class PrivateGptUi:
             n_parts=1
         )
 
-    def load_model(self, model_name, processes):
+    def load_model(self, model_name):
         """
 
         :param model_name:
-        :param processes:
         :return:
         """
         model = os.path.basename(model_name)
@@ -256,7 +254,7 @@ class PrivateGptUi:
         self._chat_service.llm.set_cache(None)
         del self._chat_service.llm
         self._chat_service.llm = Llama(
-            n_gpu_layers=43 if processes == PROCESSES[0] else 0,
+            n_gpu_layers=43,
             model_path=path,
             n_ctx=settings().llm.context_window,
             n_parts=1
@@ -703,16 +701,10 @@ class PrivateGptUi:
                                     zip(settings().local.llm_hf_repo_id, settings().local.llm_hf_model_file)]
                     model_selector = gr.Dropdown(
                         choices=models,
-                        value=self._chat_service.llm.model,
+                        value=os.path.basename(self._chat_service.llm.model_path),
                         interactive=True,
                         show_label=False,
                         container=False,
-                    )
-                with gr.Row():
-                    processes = gr.Radio(
-                        PROCESSES,
-                        value=PROCESSES[0],
-                        show_label=False
                     )
                 with gr.Accordion("Параметры", open=False):
                     with gr.Tab(label="Параметры извлечения фрагментов из текста"):
@@ -801,13 +793,9 @@ class PrivateGptUi:
                 self._set_current_mode, inputs=mode, outputs=system_prompt_input
             )
 
-            processes.change(
-                fn=lambda c: c, inputs=[processes]
-            )
-
             model_selector.change(
                 fn=self.load_model,
-                inputs=[model_selector, processes],
+                inputs=[model_selector],
                 outputs=[model_selector]
             )
 
