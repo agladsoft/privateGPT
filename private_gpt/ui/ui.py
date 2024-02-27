@@ -27,7 +27,9 @@ import uuid
 import tempfile
 import pandas as pd
 from tinydb import TinyDB, where
-from fastapi.testclient import TestClient
+from llama_cpp import Llama
+from private_gpt.paths import models_path
+from huggingface_hub.file_download import http_get
 from gradio_client.documentation import document
 from private_gpt.templates.template import create_doc
 
@@ -68,6 +70,7 @@ UI_TAB_TITLE = "MakarGPT"
 SOURCES_SEPARATOR = "\n\n Документы: \n"
 
 MODES = ["ВНД", "Свободное общение", "Получение документов"]
+PROCESSES = ["GPU", "CPU"]
 MAX_NEW_TOKENS: int = 1500
 LINEBREAK_TOKEN: int = 13
 SYSTEM_TOKEN: int = 1788
@@ -205,6 +208,8 @@ class PrivateGptUi:
         self._chat_service = chat_service
         self._chunks_service = chunks_service
 
+        self._chat_service.llm = self.initialization()
+
         # Cache the UI blocks
         self._ui_block = None
         self._queue = 0
@@ -214,6 +219,25 @@ class PrivateGptUi:
         self._system_prompt = self._get_default_system_prompt(self.mode)
         self.tiny_db = TinyDB(f'{DATA_QUESTIONS}/tiny_db.json', indent=4, ensure_ascii=False)
 
+    @staticmethod
+    def initialization():
+        path = str(models_path / settings().local.llm_hf_model_file[0])
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        if not os.path.exists(path):
+            with open(path, "wb") as f:
+                http_get(
+                    f"https://huggingface.co/{settings().local.llm_hf_repo_id[0]}/resolve/main/"
+                    f"{settings().local.llm_hf_model_file[0]}",
+                    f
+                )
+
+        return Llama(
+            n_gpu_layers=43,
+            model_path=path,
+            n_ctx=settings().llm.context_window,
+            n_parts=1
+        )
+
     def load_model(self, model_name, processes):
         """
 
@@ -221,10 +245,6 @@ class PrivateGptUi:
         :param processes:
         :return:
         """
-        from llama_cpp import Llama
-        from private_gpt.paths import models_path
-        from huggingface_hub.file_download import http_get
-
         model = os.path.basename(model_name)
         path = str(models_path / model)
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -236,7 +256,7 @@ class PrivateGptUi:
         self._chat_service.llm.set_cache(None)
         del self._chat_service.llm
         self._chat_service.llm = Llama(
-            n_gpu_layers=43 if processes == "GPU" else 0,
+            n_gpu_layers=43 if processes == PROCESSES[0] else 0,
             model_path=path,
             n_ctx=settings().llm.context_window,
             n_parts=1
@@ -690,8 +710,8 @@ class PrivateGptUi:
                     )
                 with gr.Row():
                     processes = gr.Radio(
-                        ["GPU", "CPU"],
-                        value="GPU",
+                        PROCESSES,
+                        value=PROCESSES[0],
                         show_label=False
                     )
                 with gr.Accordion("Параметры", open=False):
