@@ -232,6 +232,8 @@ class PrivateGptUi:
             with open(path, "wb") as f:
                 http_get(f"https://huggingface.co/{os.path.dirname(model_name)}/resolve/main/{model}", f)
 
+        self._chat_service.llm.reset()
+        self._chat_service.llm.set_cache(None)
         del self._chat_service.llm
         self._chat_service.llm = Llama(
             n_gpu_layers=43 if processes == "GPU" else 0,
