@@ -699,7 +699,7 @@ class PrivateGptUi:
                 with gr.Row(elem_id="model_selector_row"):
                     models: list = [f"{repo}/{model}" for repo, model in
                                     zip(settings().local.llm_hf_repo_id, settings().local.llm_hf_model_file)]
-                    logger.info("Path", os.path.basename(self._chat_service.llm.model_path))
+                    logger.info(f"Path model is {os.path.basename(self._chat_service.llm.model_path)}")
                     model_selector = gr.Dropdown(
                         choices=models,
                         value=os.path.basename(self._chat_service.llm.model_path),
