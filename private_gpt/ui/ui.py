@@ -259,7 +259,10 @@ class PrivateGptUi:
             n_ctx=settings().llm.context_window,
             n_parts=1
         )
-        return model_name
+        return os.path.basename(self._chat_service.llm.model_path)
+
+    def get_current_model(self):
+        return os.path.basename(self._chat_service.llm.model_path)
 
     def _get_context(self, history: list[list[str]], mode: str, limit, uid, *_: Any):
         match mode:
@@ -700,7 +703,7 @@ class PrivateGptUi:
                     models: list = [model for model in settings().local.llm_hf_model_file]
                     model_selector = gr.Dropdown(
                         choices=models,
-                        value=os.path.basename(self._chat_service.llm.model_path),
+                        value=self.get_current_model,
                         interactive=True,
                         show_label=False,
                         container=False,
@@ -792,7 +795,7 @@ class PrivateGptUi:
                 self._set_current_mode, inputs=mode, outputs=system_prompt_input
             )
 
-            model_selector.change(
+            model_selector.select(
                 fn=self.load_model,
                 inputs=[model_selector],
                 outputs=[model_selector]
