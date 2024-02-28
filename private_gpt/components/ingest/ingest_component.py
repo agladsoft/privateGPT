@@ -140,6 +140,16 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
             persist_directory=str(local_data_path),
             collection_name=self.collection,
         )
+
+        from private_gpt.paths import models_cache_path
+        from private_gpt.settings.settings import settings
+
+        del self.embedding_component.embedding_model
+
+        self.embedding_component.embedding_model = HuggingFaceEmbeddings(
+            model_name=settings().local.embedding_hf_model_name,
+            cache_folder=str(models_cache_path),
+        )
         logger.debug("Persisting the index and nodes")
         return documents
 
