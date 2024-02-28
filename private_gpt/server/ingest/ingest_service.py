@@ -10,7 +10,7 @@ from llama_index import (
 )
 from llama_index.node_parser import SentenceWindowNodeParser
 
-from private_gpt.components.embedding.embedding_component import EmbeddingComponent
+from private_gpt.components.embedding.embedding_component import EmbeddingComponentLangchain
 from private_gpt.components.llm.llm_component import LLMComponent
 from private_gpt.components.node_store.node_store_component import NodeStoreComponent
 from private_gpt.components.vector_store.vector_store_component import (
@@ -37,7 +37,7 @@ class IngestService:
         self,
         llm_component: LLMComponent,
         vector_store_component: VectorStoreComponent,
-        embedding_component: EmbeddingComponent,
+        embedding_component: EmbeddingComponentLangchain,
         node_store_component: NodeStoreComponent
     ) -> None:
         # self.llm_service = llm_component

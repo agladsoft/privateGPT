@@ -19,7 +19,7 @@ from private_gpt.server.chat.chat_service import ChatService
 from private_gpt.server.chunks.chunks_service import Chunk, ChunksService
 from private_gpt.server.ingest.ingest_service import IngestService
 from private_gpt.settings.settings import settings
-from private_gpt.ui.images import FAVICON_PATH
+from private_gpt.ui.images import FAVICON_PATH, QRCODE_PATH
 from private_gpt.ui.logging_custom import FileLogger
 
 import re
@@ -31,7 +31,14 @@ from llama_cpp import Llama
 from private_gpt.paths import models_path
 from huggingface_hub.file_download import http_get
 from gradio_client.documentation import document
+from private_gpt.server.embeddings.embeddings_service import EmbeddingComponentLangchain
 from private_gpt.templates.template import create_doc
+
+import chromadb
+from langchain.vectorstores import Chroma
+from private_gpt.paths import local_data_path
+from langchain.embeddings import HuggingFaceEmbeddings
+from private_gpt.paths import models_cache_path
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 logger = logging.getLogger(__name__)
@@ -207,7 +214,10 @@ class PrivateGptUi:
         self._chat_service = chat_service
         self._chunks_service = chunks_service
 
-        self._chat_service.llm = self.initialization()
+        self._chat_service.llm, \
+            self._ingest_service.ingest_component.embedding_component, \
+            self._chat_service.index \
+            = self.initialization()
 
         # Cache the UI blocks
         self._ui_block = None
@@ -218,8 +228,7 @@ class PrivateGptUi:
         self._system_prompt = self._get_default_system_prompt(self.mode)
         self.tiny_db = TinyDB(f'{DATA_QUESTIONS}/tiny_db.json', indent=4, ensure_ascii=False)
 
-    @staticmethod
-    def initialization():
+    def initialization(self):
         path = str(models_path / settings().local.llm_hf_model_file)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         if not os.path.exists(path):
@@ -230,12 +239,26 @@ class PrivateGptUi:
                     f
                 )
 
-        return Llama(
+        model = Llama(
             n_gpu_layers=43,
             model_path=path,
             n_ctx=settings().llm.context_window,
             n_parts=1
         )
+
+        embedding_component = HuggingFaceEmbeddings(
+            model_name=settings().local.embedding_hf_model_name,
+            cache_folder=str(models_cache_path),
+        )
+
+        client = chromadb.PersistentClient(path=str(local_data_path))
+        index: Chroma = Chroma(
+            client=client,
+            collection_name=self._chat_service.collection,
+            embedding_function=embedding_component,
+        )
+
+        return model, embedding_component, index
 
     def load_model(self, repo: str, model: str):
         """
@@ -708,6 +731,11 @@ class PrivateGptUi:
                         show_label=False,
                         container=False,
                     )
+                with gr.Accordion("QR Code", open=False):
+                    qrcode = f'<img src="{QRCODE_PATH}"'
+                    gr.Markdown(
+                        f"""<h1><center>{qrcode} QR CODE</center></h1>"""
+                    )
                 with gr.Accordion("Параметры", open=False):
                     with gr.Tab(label="Параметры извлечения фрагментов из текста"):
                         limit = gr.Slider(
@@ -794,12 +822,6 @@ class PrivateGptUi:
             mode.change(
                 self._set_current_mode, inputs=mode, outputs=system_prompt_input
             )
-
-            # model_selector.select(
-            #     fn=self.load_model,
-            #     inputs=[model_selector],
-            #     outputs=[model_selector]
-            # )
 
             upload_button.upload(
                 self._upload_file,

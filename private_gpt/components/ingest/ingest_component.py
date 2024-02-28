@@ -20,7 +20,7 @@ from langchain.vectorstores import Chroma
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from private_gpt.components.ingest.ingest_helper import IngestionHelperLangchain
-from private_gpt.components.embedding.embedding_component import EmbeddingComponent
+from private_gpt.components.embedding.embedding_component import EmbeddingComponentLangchain
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 class BaseIngestComponentLangchain(abc.ABC):
     def __init__(
         self,
-        embedding_component: EmbeddingComponent,
+        embedding_component: EmbeddingComponentLangchain,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -51,7 +51,7 @@ class BaseIngestComponentLangchain(abc.ABC):
 class BaseIngestComponentWithIndexLangchain(BaseIngestComponentLangchain, abc.ABC):
     def __init__(
         self,
-        embedding_component: EmbeddingComponent,
+        embedding_component: EmbeddingComponentLangchain,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -62,16 +62,16 @@ class BaseIngestComponentWithIndexLangchain(BaseIngestComponentLangchain, abc.AB
             threading.Lock()
         )  # Thread lock! Not Multiprocessing lock
         self.collection = "all-documents"
-        self._index = self._initialize_index()
+        self._index = self._initialize_index(self.embedding_component.embedding_model)
 
-    def _initialize_index(self) -> BaseIndex[IndexDict]:
+    def _initialize_index(self, embedding) -> BaseIndex[IndexDict]:
         """Initialize the index from the storage context."""
         # Load the index with store_nodes_override=True to be able to delete them
         client = chromadb.PersistentClient(path=str(local_data_path))
         index: Chroma = Chroma(
             client=client,
             collection_name=self.collection,
-            embedding_function=self.embedding_component.embedding_model,
+            embedding_function=embedding,
         )
         return index
 
@@ -90,7 +90,7 @@ class BaseIngestComponentWithIndexLangchain(BaseIngestComponentLangchain, abc.AB
 class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
     def __init__(
         self,
-        embedding_component: EmbeddingComponent,
+        embedding_component: EmbeddingComponentLangchain,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -135,7 +135,7 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
         logger.debug("Transforming count=%s documents into nodes", len(documents))
         self._index.from_documents(
             documents=documents,
-            embedding=self.embedding_component.embedding_model,
+            embedding=self.embedding_component,
             ids=ids,
             persist_directory=str(local_data_path),
             collection_name=self.collection,
@@ -144,18 +144,21 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
         from private_gpt.paths import models_cache_path
         from private_gpt.settings.settings import settings
 
-        del self.embedding_component.embedding_model
+        # del self.embedding_component
+        # self.embedding_component = HuggingFaceEmbeddings(
+        #     model_name=settings().local.embedding_hf_model_name,
+        #     cache_folder=str(models_cache_path),
+        # )
 
-        self.embedding_component.embedding_model = HuggingFaceEmbeddings(
-            model_name=settings().local.embedding_hf_model_name,
-            cache_folder=str(models_cache_path),
-        )
+        del self._index
+        self._index = self._initialize_index(self.embedding_component)
+
         logger.debug("Persisting the index and nodes")
         return documents
 
 
 def get_ingestion_component_langchain(
-    embedding_component: EmbeddingComponent,
+    embedding_component: EmbeddingComponentLangchain,
     settings: Settings,
 ) -> BaseIngestComponentLangchain:
     """Get the ingestion component for the given configuration."""
