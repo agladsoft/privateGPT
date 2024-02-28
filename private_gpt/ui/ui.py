@@ -214,10 +214,9 @@ class PrivateGptUi:
         self._chat_service = chat_service
         self._chunks_service = chunks_service
 
-        self._chat_service.llm, \
-            self._ingest_service.ingest_component.embedding_component, \
-            self._chat_service.index \
-            = self.initialization()
+        self._chat_service.llm = self.initial_model()
+        self._ingest_service.ingest_component.embedding_component = self.initial_embedding()
+        self._chat_service.index = self.initial_db()
 
         # Cache the UI blocks
         self._ui_block = None
@@ -228,7 +227,8 @@ class PrivateGptUi:
         self._system_prompt = self._get_default_system_prompt(self.mode)
         self.tiny_db = TinyDB(f'{DATA_QUESTIONS}/tiny_db.json', indent=4, ensure_ascii=False)
 
-    def initialization(self):
+    @staticmethod
+    def initial_model():
         path = str(models_path / settings().local.llm_hf_model_file)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         if not os.path.exists(path):
@@ -239,26 +239,27 @@ class PrivateGptUi:
                     f
                 )
 
-        model = Llama(
+        return Llama(
             n_gpu_layers=43,
             model_path=path,
             n_ctx=settings().llm.context_window,
             n_parts=1
         )
 
-        embedding_component = HuggingFaceEmbeddings(
+    @staticmethod
+    def initial_embedding():
+        return HuggingFaceEmbeddings(
             model_name=settings().local.embedding_hf_model_name,
             cache_folder=str(models_cache_path),
         )
 
+    def initial_db(self):
         client = chromadb.PersistentClient(path=str(local_data_path))
-        index: Chroma = Chroma(
+        return Chroma(
             client=client,
             collection_name=self._chat_service.collection,
-            embedding_function=embedding_component,
+            embedding_function=self._ingest_service.ingest_component.embedding_component,
         )
-
-        return model, embedding_component, index
 
     def load_model(self, repo: str, model: str):
         """
