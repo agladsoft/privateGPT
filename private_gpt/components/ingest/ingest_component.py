@@ -141,8 +141,6 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
             collection_name=self.collection,
         )
         logger.debug("Persisting the index and nodes")
-        del self._index
-        self._index = self._initialize_index()
         return documents
 
 
