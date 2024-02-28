@@ -220,13 +220,13 @@ class PrivateGptUi:
 
     @staticmethod
     def initialization():
-        path = str(models_path / settings().local.llm_hf_model_file[0])
+        path = str(models_path / settings().local.llm_hf_model_file)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         if not os.path.exists(path):
             with open(path, "wb") as f:
                 http_get(
-                    f"https://huggingface.co/{settings().local.llm_hf_repo_id[0]}/resolve/main/"
-                    f"{settings().local.llm_hf_model_file[0]}",
+                    f"https://huggingface.co/{settings().local.llm_hf_repo_id}/resolve/main/"
+                    f"{settings().local.llm_hf_model_file}",
                     f
                 )
 
@@ -237,18 +237,17 @@ class PrivateGptUi:
             n_parts=1
         )
 
-    def load_model(self, model_name):
+    def load_model(self):
         """
 
-        :param model_name:
         :return:
         """
-        model = os.path.basename(model_name)
+        model = "model-q2_K.gguf"
         path = str(models_path / model)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         if not os.path.exists(path):
             with open(path, "wb") as f:
-                http_get(f"https://huggingface.co/{os.path.dirname(model_name)}/resolve/main/{model}", f)
+                http_get(f"https://huggingface.co/IlyaGusev/saiga2_7b_gguf/resolve/main/{model}", f)
 
         self._chat_service.llm.reset()
         self._chat_service.llm.set_cache(None)
@@ -259,7 +258,6 @@ class PrivateGptUi:
             n_ctx=settings().llm.context_window,
             n_parts=1
         )
-        return os.path.basename(self._chat_service.llm.model_path)
 
     def get_current_model(self):
         return os.path.basename(self._chat_service.llm.model_path)
@@ -547,6 +545,7 @@ class PrivateGptUi:
 
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
         logger.debug("Loading count=%s files", len(files))
+        self.load_model()
         message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
         return message, self._list_ingested_files()
 
@@ -700,10 +699,11 @@ class PrivateGptUi:
 
             with gr.Tab("Настройки"):
                 with gr.Row(elem_id="model_selector_row"):
-                    models: list = [model for model in settings().local.llm_hf_model_file]
-                    model_selector = gr.Dropdown(
+                    models: list = list([f"{settings().local.llm_hf_repo_id.split('/')[1]}/"
+                                         f"{settings().local.llm_hf_model_file}"])
+                    gr.Dropdown(
                         choices=models,
-                        value=self.get_current_model,
+                        value=models[0],
                         interactive=True,
                         show_label=False,
                         container=False,
@@ -795,11 +795,11 @@ class PrivateGptUi:
                 self._set_current_mode, inputs=mode, outputs=system_prompt_input
             )
 
-            model_selector.select(
-                fn=self.load_model,
-                inputs=[model_selector],
-                outputs=[model_selector]
-            )
+            # model_selector.select(
+            #     fn=self.load_model,
+            #     inputs=[model_selector],
+            #     outputs=[model_selector]
+            # )
 
             upload_button.upload(
                 self._upload_file,
