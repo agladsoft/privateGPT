@@ -237,17 +237,16 @@ class PrivateGptUi:
             n_parts=1
         )
 
-    def load_model(self):
+    def load_model(self, repo: str, model: str):
         """
 
         :return:
         """
-        model = "model-q2_K.gguf"
         path = str(models_path / model)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         if not os.path.exists(path):
             with open(path, "wb") as f:
-                http_get(f"https://huggingface.co/IlyaGusev/saiga2_7b_gguf/resolve/main/{model}", f)
+                http_get(f"https://huggingface.co/{repo}/resolve/main/{model}", f)
 
         self._chat_service.llm.reset()
         self._chat_service.llm.set_cache(None)
@@ -545,8 +544,9 @@ class PrivateGptUi:
 
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
         logger.debug("Loading count=%s files", len(files))
-        self.load_model()
+        self.load_model(repo="IlyaGusev/saiga2_7b_gguf", model="model-q2_K.gguf")
         message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
+        self.load_model(repo=settings().local.llm_hf_repo_id, model=settings().local.llm_hf_model_file)
         return message, self._list_ingested_files()
 
     def get_analytics(self):
