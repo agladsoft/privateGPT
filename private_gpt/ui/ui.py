@@ -214,9 +214,9 @@ class PrivateGptUi:
         self._chat_service = chat_service
         self._chunks_service = chunks_service
 
-        self._chat_service.llm = self.initial_model()
-        self._ingest_service.ingest_component.embedding_component = self.initial_embedding()
-        self._chat_service.index = self.initial_db()
+        self._chat_service.llm = self.init_model()
+        self._ingest_service.ingest_component.embedding_component = self.init_embedding()
+        self._chat_service.index = self.init_db()
 
         # Cache the UI blocks
         self._ui_block = None
@@ -228,7 +228,7 @@ class PrivateGptUi:
         self.tiny_db = TinyDB(f'{DATA_QUESTIONS}/tiny_db.json', indent=4, ensure_ascii=False)
 
     @staticmethod
-    def initial_model():
+    def init_model():
         path = str(models_path / settings().local.llm_hf_model_file)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         if not os.path.exists(path):
@@ -247,13 +247,13 @@ class PrivateGptUi:
         )
 
     @staticmethod
-    def initial_embedding():
+    def init_embedding():
         return HuggingFaceEmbeddings(
             model_name=settings().local.embedding_hf_model_name,
             cache_folder=str(models_cache_path),
         )
 
-    def initial_db(self):
+    def init_db(self):
         client = chromadb.PersistentClient(path=str(local_data_path))
         return Chroma(
             client=client,
