@@ -268,6 +268,7 @@ class PrivateGptUi:
         """
         if is_load_model:
             self._chat_service.llm = self.init_model()
+            gr.Info("Модель загружена, можете задавать вопросы")
         else:
             self._chat_service.llm.reset()
             self._chat_service.llm.set_cache(None)
