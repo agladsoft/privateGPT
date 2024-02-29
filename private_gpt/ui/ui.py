@@ -261,27 +261,18 @@ class PrivateGptUi:
             embedding_function=self._ingest_service.ingest_component.embedding_component,
         )
 
-    def load_model(self, repo: str, model: str):
+    def load_model(self, is_load_model: bool):
         """
 
         :return:
         """
-        if repo and model:
-            path = str(models_path / model)
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            if not os.path.exists(path):
-                with open(path, "wb") as f:
-                    http_get(f"https://huggingface.co/{repo}/resolve/main/{model}", f)
-            self._chat_service.llm = Llama(
-                n_gpu_layers=43,
-                model_path=path,
-                n_ctx=settings().llm.context_window,
-                n_parts=1
-            )
+        if is_load_model:
+            self._chat_service.llm = self.init_model()
         else:
             self._chat_service.llm.reset()
             self._chat_service.llm.set_cache(None)
             del self._chat_service.llm
+            self._chat_service.llm = None
 
     def get_current_model(self):
         return os.path.basename(self._chat_service.llm.model_path)
@@ -569,7 +560,7 @@ class PrivateGptUi:
 
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
         logger.debug("Loading count=%s files", len(files))
-        self.load_model(repo=None, model=None)
+        self.load_model(is_load_model=False)
         message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
 
         # del self._ingest_service.ingest_component.embedding_component
@@ -578,7 +569,7 @@ class PrivateGptUi:
         # self._ingest_service.ingest_component.embedding_component = self.init_embedding()
         # self._chat_service.index = self.init_db()
 
-        self.load_model(repo=settings().local.llm_hf_repo_id, model=settings().local.llm_hf_model_file)
+        self.load_model(is_load_model=True)
         return message, self._list_ingested_files()
 
     def get_analytics(self):
