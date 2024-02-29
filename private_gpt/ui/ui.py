@@ -267,6 +267,13 @@ class PrivateGptUi:
         :return:
         """
         if is_load_model:
+
+            # del self._ingest_service.ingest_component.embedding_component
+            # del self._chat_service.index
+            #
+            # self._ingest_service.ingest_component.embedding_component = self.init_embedding()
+            # self._chat_service.index = self.init_db()
+
             self._chat_service.llm = self.init_model()
         else:
             self._chat_service.llm.reset()
@@ -562,14 +569,6 @@ class PrivateGptUi:
         logger.debug("Loading count=%s files", len(files))
         self.load_model(is_load_model=False)
         message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
-
-        # del self._ingest_service.ingest_component.embedding_component
-        # del self._chat_service.index
-        #
-        # self._ingest_service.ingest_component.embedding_component = self.init_embedding()
-        # self._chat_service.index = self.init_db()
-
-        self.load_model(is_load_model=True)
         return message, self._list_ingested_files()
 
     def get_analytics(self):
@@ -827,6 +826,9 @@ class PrivateGptUi:
                 self._upload_file,
                 inputs=[upload_button, chunk_size, chunk_overlap],
                 outputs=[file_warning, ingested_dataset],
+            ).success(
+                fn=self.load_model,
+                inputs=[gr.State(True)]
             )
 
             # Delete documents from db
