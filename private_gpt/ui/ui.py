@@ -573,7 +573,7 @@ class PrivateGptUi:
         message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
 
         del self._ingest_service.ingest_component.embedding_component
-        del self._chat_service
+        del self._chat_service.index
 
         self._ingest_service.ingest_component.embedding_component = self.init_embedding()
         self._chat_service.index = self.init_db()
