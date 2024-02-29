@@ -3,6 +3,7 @@ import datetime
 import logging
 import os.path
 import threading
+import time
 from pathlib import Path
 from typing import Any, List, Literal
 from gradio.queueing import Queue, Event
@@ -266,6 +267,7 @@ class PrivateGptUi:
 
         :return:
         """
+        time.sleep(10)
         if is_load_model:
             self._chat_service.llm = self.init_model()
             gr.Info("Модель загружена, можете задавать вопросы")
