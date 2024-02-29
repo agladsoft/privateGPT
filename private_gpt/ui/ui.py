@@ -267,12 +267,6 @@ class PrivateGptUi:
         :return:
         """
         if is_load_model:
-            del self._ingest_service.ingest_component.embedding_component
-            del self._chat_service.index
-
-            self._ingest_service.ingest_component.embedding_component = self.init_embedding()
-            self._chat_service.index = self.init_db()
-
             self._chat_service.llm = self.init_model()
         else:
             self._chat_service.llm.reset()
