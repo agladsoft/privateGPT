@@ -266,21 +266,22 @@ class PrivateGptUi:
 
         :return:
         """
-        path = str(models_path / model)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        if not os.path.exists(path):
-            with open(path, "wb") as f:
-                http_get(f"https://huggingface.co/{repo}/resolve/main/{model}", f)
-
-        self._chat_service.llm.reset()
-        self._chat_service.llm.set_cache(None)
-        del self._chat_service.llm
-        self._chat_service.llm = Llama(
-            n_gpu_layers=43,
-            model_path=path,
-            n_ctx=settings().llm.context_window,
-            n_parts=1
-        )
+        if repo and model:
+            path = str(models_path / model)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            if not os.path.exists(path):
+                with open(path, "wb") as f:
+                    http_get(f"https://huggingface.co/{repo}/resolve/main/{model}", f)
+            self._chat_service.llm = Llama(
+                n_gpu_layers=43,
+                model_path=path,
+                n_ctx=settings().llm.context_window,
+                n_parts=1
+            )
+        else:
+            self._chat_service.llm.reset()
+            self._chat_service.llm.set_cache(None)
+            del self._chat_service.llm
 
     def get_current_model(self):
         return os.path.basename(self._chat_service.llm.model_path)
@@ -568,7 +569,7 @@ class PrivateGptUi:
 
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
         logger.debug("Loading count=%s files", len(files))
-        self.load_model(repo="IlyaGusev/saiga2_7b_gguf", model="model-q2_K.gguf")
+        self.load_model(repo=None, model=None)
         message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
         self.load_model(repo=settings().local.llm_hf_repo_id, model=settings().local.llm_hf_model_file)
         return message, self._list_ingested_files()
