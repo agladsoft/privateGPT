@@ -268,7 +268,7 @@ class PrivateGptUi:
         :return:
         """
         if is_load_model:
-            time.sleep(10)
+            time.sleep(15)
             self._chat_service.llm = self.init_model()
             gr.Info("Модель загружена, можете задавать вопросы")
         else:
