@@ -571,6 +571,13 @@ class PrivateGptUi:
         logger.debug("Loading count=%s files", len(files))
         self.load_model(repo=None, model=None)
         message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
+
+        del self._ingest_service.ingest_component.embedding_component
+        del self._chat_service
+
+        self._ingest_service.ingest_component.embedding_component = self.init_embedding()
+        self._chat_service.index = self.init_db()
+
         self.load_model(repo=settings().local.llm_hf_repo_id, model=settings().local.llm_hf_model_file)
         return message, self._list_ingested_files()
 
