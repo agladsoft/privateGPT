@@ -277,6 +277,7 @@ class PrivateGptUi:
             del self._ingest_service.ingest_component.embedding_component
             gc.collect()
             torch.cuda.empty_cache()
+            time.sleep(10)
             self._ingest_service.ingest_component.embedding_component = self.init_embedding()
             self._chat_service.index = self.init_db()
             self._chat_service.llm = self.init_model()
