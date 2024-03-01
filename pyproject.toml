@@ -28,6 +28,9 @@ pdfminer-six = "20221105"
 gradio = "4.10.0"
 sentence-transformers = "2.2.2"
 tinydb = "4.8.0"
+nvidia-ml-py = "12.535.133"
+nvidia-ml-py3 = "^7.352.0"
+psutil = "^5.9.8"
 
 [tool.poetry.group.dev.dependencies]
 black = "^22"
