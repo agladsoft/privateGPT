@@ -21,6 +21,7 @@ from private_gpt.server.chunks.chunks_service import Chunk, ChunksService
 from private_gpt.server.ingest.ingest_service import IngestService
 from private_gpt.settings.settings import settings
 from private_gpt.ui.images import FAVICON_PATH, QRCODE_PATH
+from private_gpt.ui.gpu import memory_peak_profile
 from private_gpt.ui.logging_custom import FileLogger
 
 import re
@@ -32,7 +33,6 @@ from llama_cpp import Llama
 from private_gpt.paths import models_path
 from huggingface_hub.file_download import http_get
 from gradio_client.documentation import document
-from private_gpt.server.embeddings.embeddings_service import EmbeddingComponentLangchain
 from private_gpt.templates.template import create_doc
 
 import gc
@@ -232,6 +232,7 @@ class PrivateGptUi:
         self.tiny_db = TinyDB(f'{DATA_QUESTIONS}/tiny_db.json', indent=4, ensure_ascii=False)
 
     @staticmethod
+    @memory_peak_profile
     def init_model():
         path = str(models_path / settings().local.llm_hf_model_file)
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -251,12 +252,14 @@ class PrivateGptUi:
         )
 
     @staticmethod
+    @memory_peak_profile
     def init_embedding():
         return HuggingFaceEmbeddings(
             model_name=settings().local.embedding_hf_model_name,
             cache_folder=str(models_cache_path),
         )
 
+    @memory_peak_profile
     def init_db(self):
         client = chromadb.PersistentClient(path=str(local_data_path))
         return Chroma(
@@ -265,6 +268,7 @@ class PrivateGptUi:
             embedding_function=self._ingest_service.ingest_component.embedding_component,
         )
 
+    @memory_peak_profile
     def load_model(self, is_load_model: bool):
         """
 
@@ -512,6 +516,7 @@ class PrivateGptUi:
             history[-1][1] = partial_text
         return history
 
+    @memory_peak_profile
     def bot(self, history, retrieved_docs, mode, top_k, top_p, temp, uid, scores):
         """
 
@@ -572,6 +577,7 @@ class PrivateGptUi:
             case Modes.DOC:
                 yield from self.bot(history, context, Modes.DOC, top_k, top_p, temp, uid, scores)
 
+    @memory_peak_profile
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
         logger.debug("Loading count=%s files", len(files))
         message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
