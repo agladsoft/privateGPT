@@ -272,17 +272,10 @@ class PrivateGptUi:
         """
         if is_load_model:
             logger.info("Loaded files")
-            time.sleep(15)
-
             del self._index
             del self.embedding_component
-
             gc.collect()
             torch.cuda.empty_cache()
-
-            logger.info("Clear db and embedding")
-            time.sleep(15)
-
             self._ingest_service.ingest_component.embedding_component = self.init_embedding()
             self._chat_service.index = self.init_db()
 
