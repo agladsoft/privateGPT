@@ -1,6 +1,7 @@
 import abc
 import logging
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -146,11 +147,17 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
             collection_name=self.collection,
         )
 
+        logger.info("Loaded files")
+        time.sleep(15)
+
         del self._index
         del self.embedding_component
 
         gc.collect()
         torch.cuda.empty_cache()
+
+        logger.info("Clear db and embedding")
+        time.sleep(15)
 
         self.embedding_component = HuggingFaceEmbeddings(
             model_name=settings().local.embedding_hf_model_name,
