@@ -272,7 +272,7 @@ class PrivateGptUi:
         """
         if is_load_model:
             logger.info("Loaded files")
-            time.sleep(15)
+            time.sleep(5)
             del self._index
             del self.embedding_component
             gc.collect()
