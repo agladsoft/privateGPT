@@ -287,7 +287,6 @@ class PrivateGptUi:
             self._chat_service.llm.reset()
             self._chat_service.llm.set_cache(None)
             del self._chat_service.llm
-            self._chat_service.llm = None
 
     def get_current_model(self):
         return os.path.basename(self._chat_service.llm.model_path)
