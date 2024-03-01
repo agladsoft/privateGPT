@@ -14,11 +14,6 @@ from llama_index.indices.base import BaseIndex
 from private_gpt.paths import local_data_path
 from private_gpt.settings.settings import Settings
 
-import gc
-import torch
-from private_gpt.paths import models_cache_path
-from private_gpt.settings.settings import settings
-
 import os
 import chromadb
 from typing import Union, List
@@ -146,25 +141,6 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
             persist_directory=str(local_data_path),
             collection_name=self.collection,
         )
-
-        logger.info("Loaded files")
-        time.sleep(15)
-
-        del self._index
-        del self.embedding_component
-
-        gc.collect()
-        torch.cuda.empty_cache()
-
-        logger.info("Clear db and embedding")
-        time.sleep(15)
-
-        self.embedding_component = HuggingFaceEmbeddings(
-            model_name=settings().local.embedding_hf_model_name,
-            cache_folder=str(models_cache_path),
-        )
-        self._index = self._initialize_index(self.embedding_component)
-
         logger.debug("Persisting the index and nodes")
         return documents
 

@@ -35,6 +35,9 @@ from gradio_client.documentation import document
 from private_gpt.server.embeddings.embeddings_service import EmbeddingComponentLangchain
 from private_gpt.templates.template import create_doc
 
+import gc
+import torch
+from private_gpt.settings.settings import settings
 import chromadb
 from langchain.vectorstores import Chroma
 from private_gpt.paths import local_data_path
@@ -268,10 +271,25 @@ class PrivateGptUi:
         :return:
         """
         if is_load_model:
+            logger.info("Loaded files")
             time.sleep(15)
+
+            del self._index
+            del self.embedding_component
+
+            gc.collect()
+            torch.cuda.empty_cache()
+
+            logger.info("Clear db and embedding")
+            time.sleep(15)
+
+            self._ingest_service.ingest_component.embedding_component = self.init_embedding()
+            self._chat_service.index = self.init_db()
+
             self._chat_service.llm = self.init_model()
             gr.Info("Модель загружена, можете задавать вопросы")
         else:
+            logger.info("Clear model")
             self._chat_service.llm.reset()
             self._chat_service.llm.set_cache(None)
             del self._chat_service.llm
