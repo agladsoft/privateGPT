@@ -144,9 +144,12 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
         logger.info("Persisting the index and nodes")
         time.sleep(15)
         del self._index
+        del self.embedding_component
         import gc, torch
         gc.collect()
         torch.cuda.empty_cache()
+        logger.info("Cleared db")
+        time.sleep(15)
         return documents
 
 
