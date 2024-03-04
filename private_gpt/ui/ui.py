@@ -38,6 +38,7 @@ from private_gpt.templates.template import create_doc
 import gc
 import torch
 from private_gpt.settings.settings import settings
+from private_gpt.components.ingest.ingest_component import get_ingestion_component_langchain
 import chromadb
 from langchain.vectorstores import Chroma
 from private_gpt.paths import local_data_path
@@ -275,12 +276,15 @@ class PrivateGptUi:
             time.sleep(15)
             del self._chat_service.index
             del self._ingest_service.ingest_component.embedding_component
-            del self._ingest_service
+            del self._ingest_service.ingest_component
             gc.collect()
             torch.cuda.empty_cache()
             logger.info("Cleared db and embeddings")
             time.sleep(15)
-            self._ingest_service.ingest_component.embedding_component = self.init_embedding()
+            embedding_component = self.init_embedding()
+            self._ingest_service.ingest_component = \
+                get_ingestion_component_langchain(embedding_component, settings=settings())
+            self._ingest_service.ingest_component.embedding_component = embedding_component
             self._chat_service.index = self.init_db()
             self._chat_service.llm = self.init_model()
             gr.Info("Модель загружена, можете задавать вопросы")
