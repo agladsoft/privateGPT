@@ -143,6 +143,10 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
         )
         logger.info("Persisting the index and nodes")
         time.sleep(15)
+        del self._index
+        import gc, torch
+        gc.collect()
+        torch.cuda.empty_cache()
         return documents
 
 
