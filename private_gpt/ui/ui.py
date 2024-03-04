@@ -275,6 +275,7 @@ class PrivateGptUi:
             time.sleep(15)
             del self._chat_service.index
             del self._ingest_service.ingest_component.embedding_component
+            del self._ingest_service
             gc.collect()
             torch.cuda.empty_cache()
             logger.info("Cleared db and embeddings")
