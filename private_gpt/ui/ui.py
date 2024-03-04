@@ -274,17 +274,17 @@ class PrivateGptUi:
         if is_load_model:
             logger.info("Loaded files")
             time.sleep(15)
+            del self._chat_service.llm
             del self._chat_service.index
             del self._ingest_service.ingest_component.embedding_component
             del self._ingest_service.ingest_component
+            del self._ingest_service
+            del self._chat_service
             gc.collect()
             torch.cuda.empty_cache()
             logger.info("Cleared db and embeddings")
             time.sleep(15)
-            embedding_component = self.init_embedding()
-            self._ingest_service.ingest_component = \
-                get_ingestion_component_langchain(embedding_component, settings=settings())
-            self._ingest_service.ingest_component.embedding_component = embedding_component
+            self._ingest_service.ingest_component.embedding_component = self.init_embedding()
             self._chat_service.index = self.init_db()
             self._chat_service.llm = self.init_model()
             gr.Info("Модель загружена, можете задавать вопросы")
@@ -292,7 +292,6 @@ class PrivateGptUi:
             logger.info("Clear model")
             self._chat_service.llm.reset()
             self._chat_service.llm.set_cache(None)
-            del self._chat_service.llm
 
     def get_current_model(self):
         return os.path.basename(self._chat_service.llm.model_path)
