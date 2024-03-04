@@ -142,6 +142,7 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
             collection_name=self.collection,
         )
         logger.info("Persisting the index and nodes")
+        time.sleep(15)
         return documents
 
 
