@@ -280,8 +280,6 @@ class PrivateGptUi:
             del self._ingest_service
             del self._chat_service
             del self._chunks_service
-            del IngestService
-            del ChatService
             gc.collect()
             torch.cuda.empty_cache()
             logger.info("Cleared db and embeddings")
