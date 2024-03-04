@@ -134,6 +134,7 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
 
     def _save_docs(self, documents: list[Document], ids: List[str]) -> list[Document]:
         logger.info("Transforming count=%s documents into nodes", len(documents))
+        time.sleep(15)
         self._index.from_documents(
             documents=documents,
             embedding=self.embedding_component,
