@@ -56,7 +56,10 @@ class EmbeddingComponentLangchain:
         match embedding_mode:
             case "local":
 
-                self.embedding_model = None
+                self.embedding_model = HuggingFaceEmbeddings(
+                    model_name=settings.local.embedding_hf_model_name,
+                    cache_folder=str(models_cache_path),
+                )
             # case "sagemaker":
             #
             #     from private_gpt.components.embedding.custom.sagemaker import (

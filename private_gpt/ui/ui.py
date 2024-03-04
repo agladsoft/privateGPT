@@ -220,8 +220,8 @@ class PrivateGptUi:
         self._chunks_service = chunks_service
 
         self._chat_service.llm = self.init_model()
-        self._ingest_service.ingest_component.embedding_component = self.init_embedding()
-        self._chat_service.index = self.init_db()
+        # self._ingest_service.ingest_component.embedding_component = self.init_embedding()
+        # self._chat_service.index = self.init_db()
 
         # Cache the UI blocks
         self._ui_block = None

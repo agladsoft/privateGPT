@@ -63,16 +63,16 @@ class BaseIngestComponentWithIndexLangchain(BaseIngestComponentLangchain, abc.AB
             threading.Lock()
         )  # Thread lock! Not Multiprocessing lock
         self.collection = "all-documents"
-        self._index: Chroma = self._initialize_index(self.embedding_component.embedding_model)
+        self._index: Chroma = self._initialize_index()
 
-    def _initialize_index(self, embedding) -> Chroma:
+    def _initialize_index(self) -> Chroma:
         """Initialize the index from the storage context."""
         # Load the index with store_nodes_override=True to be able to delete them
         client = chromadb.PersistentClient(path=str(local_data_path))
         index: Chroma = Chroma(
             client=client,
             collection_name=self.collection,
-            embedding_function=embedding,
+            embedding_function=self.embedding_component.embedding_model,
         )
         return index
 
