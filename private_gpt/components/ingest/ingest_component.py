@@ -63,16 +63,16 @@ class BaseIngestComponentWithIndexLangchain(BaseIngestComponentLangchain, abc.AB
             threading.Lock()
         )  # Thread lock! Not Multiprocessing lock
         self.collection = "all-documents"
-        self._index: Chroma = self._initialize_index()
+        self._index: Chroma = self._initialize_index(self.embedding_component.embedding_model)
 
-    def _initialize_index(self) -> Chroma:
+    def _initialize_index(self, embedding) -> Chroma:
         """Initialize the index from the storage context."""
         # Load the index with store_nodes_override=True to be able to delete them
         client = chromadb.PersistentClient(path=str(local_data_path))
         index: Chroma = Chroma(
             client=client,
             collection_name=self.collection,
-            embedding_function=self.embedding_component.embedding_model,
+            embedding_function=embedding,
         )
         return index
 
@@ -135,9 +135,12 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
     def _save_docs(self, documents: list[Document], ids: List[str]) -> list[Document]:
         logger.info("Transforming count=%s documents into nodes", len(documents))
         time.sleep(15)
-        self._index.add_documents(
+        self._index.from_documents(
             documents=documents,
-            ids=ids
+            embedding=self.embedding_component,
+            ids=ids,
+            persist_directory=str(local_data_path),
+            collection_name=self.collection,
         )
         logger.info("Persisting the index and nodes")
         time.sleep(15)

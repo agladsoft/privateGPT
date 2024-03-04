@@ -94,12 +94,7 @@ class ChatService:
     ) -> None:
         self.llm = llm_component.llm
         self.collection = "all-documents"
-        client = chromadb.PersistentClient(path=str(local_data_path))
-        self.index = Chroma(
-            client=client,
-            collection_name=self.collection,
-            embedding_function=embedding_component.embedding_model,
-        )
+        self.index = None
 
     def retrieve(
         self,
