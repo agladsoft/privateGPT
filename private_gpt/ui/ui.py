@@ -245,7 +245,7 @@ class PrivateGptUi:
                 )
 
         return Llama(
-            n_gpu_layers=40,
+            n_gpu_layers=41,
             model_path=path,
             n_ctx=settings().llm.context_window,
             n_parts=1
@@ -579,6 +579,7 @@ class PrivateGptUi:
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
         logger.debug("Loading count=%s files", len(files))
         message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
+        self.load_model(True)
         return message, self._list_ingested_files()
 
     def get_analytics(self):
@@ -839,9 +840,6 @@ class PrivateGptUi:
                 self._upload_file,
                 inputs=[upload_button, chunk_size, chunk_overlap],
                 outputs=[file_warning, ingested_dataset],
-            ).success(
-                fn=self.load_model,
-                inputs=[gr.State(True)]
             )
 
             # Delete documents from db
