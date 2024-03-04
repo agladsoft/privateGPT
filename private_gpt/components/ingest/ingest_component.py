@@ -118,6 +118,8 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
         return message
 
     def bulk_ingest(self, files: List[str], chunk_size: int, chunk_overlap: int) -> str:
+        logger.info("Loading documents 3")
+        time.sleep(15)
         load_documents: List[Document] = [
             IngestionHelperLangchain._load_file_to_documents(path) for path in files
         ]
@@ -134,6 +136,8 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
 
     def _save_docs(self, documents: list[Document], ids: List[str]) -> list[Document]:
         logger.debug("Transforming count=%s documents into nodes", len(documents))
+        logger.info("Loading documents 4")
+        time.sleep(15)
         self._index.from_documents(
             documents=documents,
             embedding=self.embedding_component,

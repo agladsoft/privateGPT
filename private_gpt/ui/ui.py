@@ -290,6 +290,7 @@ class PrivateGptUi:
             gr.Info("Модель загружена, можете задавать вопросы")
         else:
             logger.info("Clear model")
+            time.sleep(15)
             self._chat_service.llm.reset()
             self._chat_service.llm.set_cache(None)
             del self._chat_service.llm
@@ -582,6 +583,8 @@ class PrivateGptUi:
 
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
         logger.debug("Loading count=%s files", len(files))
+        logger.info("Loading documents")
+        time.sleep(15)
         message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
         return message, self._list_ingested_files()
 
