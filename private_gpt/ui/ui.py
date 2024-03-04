@@ -578,9 +578,9 @@ class PrivateGptUi:
 
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
         logger.debug("Loading count=%s files", len(files))
-        self.load_model(False)
+        self.load_model(is_load_model=False)
         message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
-        self.load_model(True)
+        self.load_model(is_load_model=True)
         return message, self._list_ingested_files()
 
     def get_analytics(self):
