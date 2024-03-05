@@ -580,7 +580,7 @@ class PrivateGptUi:
 
         python_file = THIS_DIRECTORY_RELATIVE / 'upload_files.py'
         list_files = [f.name for f in files]
-        subprocess.call(["python3", python_file] + list_files)
+        subprocess.call([".venv/bin/python3", python_file] + list_files)
 
         # subprocess.call(f"python3 {python_file} {[f.name for f in files]} {chunk_size} {chunk_overlap}", shell=True)
         # message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
