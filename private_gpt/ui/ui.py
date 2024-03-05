@@ -578,7 +578,7 @@ class PrivateGptUi:
         logger.debug("Loading count=%s files", len(files))
         self.load_model(is_load_model=False)
 
-        python_file = THIS_DIRECTORY_RELATIVE / 'upload_files.py'
+        python_file = os.path.join(PROJECT_ROOT_PATH, "upload_files.py")
         list_files = [f.name for f in files]
         subprocess.call([".venv/bin/python3", python_file] + list_files)
 
