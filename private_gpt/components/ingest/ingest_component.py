@@ -63,7 +63,11 @@ class BaseIngestComponentWithIndexLangchain(BaseIngestComponentLangchain, abc.AB
             threading.Lock()
         )  # Thread lock! Not Multiprocessing lock
         self.collection = "all-documents"
-        self._index: Chroma = self._initialize_index(self.embedding_component.embedding_model)
+        try:
+            embedding = embedding_component.embedding_model
+        except AttributeError:
+            embedding = embedding_component
+        self._index: Chroma = self._initialize_index(embedding)
 
     def _initialize_index(self, embedding) -> Chroma:
         """Initialize the index from the storage context."""
@@ -72,7 +76,7 @@ class BaseIngestComponentWithIndexLangchain(BaseIngestComponentLangchain, abc.AB
         index: Chroma = Chroma(
             client=client,
             collection_name=self.collection,
-            embedding_function=embedding,
+            embedding_function=embedding
         )
         return index
 
@@ -117,7 +121,7 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
         logger.info("Saving the documents in the index and doc store")
         return message
 
-    def bulk_ingest(self, files: List[str], chunk_size: int, chunk_overlap: int) -> str:
+    def bulk_ingest(self, files: str, chunk_size: int, chunk_overlap: int) -> str:
         load_documents: List[Document] = [
             IngestionHelperLangchain._load_file_to_documents(path) for path in files
         ]

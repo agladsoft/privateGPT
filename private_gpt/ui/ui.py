@@ -2,6 +2,7 @@
 import datetime
 import logging
 import os.path
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -19,9 +20,7 @@ from private_gpt.di import global_injector
 from private_gpt.server.chat.chat_service import ChatService
 from private_gpt.server.chunks.chunks_service import Chunk, ChunksService
 from private_gpt.server.ingest.ingest_service import IngestService
-from private_gpt.settings.settings import settings
 from private_gpt.ui.images import FAVICON_PATH, QRCODE_PATH
-from private_gpt.ui.gpu import memory_peak_profile
 from private_gpt.ui.logging_custom import FileLogger
 
 import re
@@ -283,7 +282,6 @@ class PrivateGptUi:
             self._ingest_service.ingest_component.embedding_component = self.init_embedding()
             self._chat_service.index = self.init_db()
             self._chat_service.llm = self.init_model()
-            gr.Info("Модель загружена, можете задавать вопросы")
         else:
             logger.info("Clear model")
             self._chat_service.llm.reset()
@@ -579,9 +577,15 @@ class PrivateGptUi:
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
         logger.debug("Loading count=%s files", len(files))
         self.load_model(is_load_model=False)
-        message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
+
+        python_file = THIS_DIRECTORY_RELATIVE / 'upload_files.py'
+        list_files = [f.name for f in files]
+        subprocess.call(["python3", python_file] + list_files)
+
+        # subprocess.call(f"python3 {python_file} {[f.name for f in files]} {chunk_size} {chunk_overlap}", shell=True)
+        # message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
         self.load_model(is_load_model=True)
-        return message, self._list_ingested_files()
+        return "Файлы загружены", self._list_ingested_files()
 
     def get_analytics(self):
         try:

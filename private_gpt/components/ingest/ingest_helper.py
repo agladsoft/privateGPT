@@ -156,7 +156,7 @@ class IngestionHelperLangchain:
 
     @staticmethod
     def _load_file_to_documents(file_name: str) -> Document:
-        logger.debug("Transforming file_name=%s into documents", file_name)
+        logger.info("Transforming file_name=%s into documents", file_name)
         ext: str = "." + file_name.rsplit(".", 1)[-1]
         assert ext in LOADER_MAPPING
         loader_class, loader_args = LOADER_MAPPING[ext]
