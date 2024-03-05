@@ -1,10 +1,9 @@
-from langchain.embeddings import HuggingFaceEmbeddings
 import sys
-# from private_gpt.components.embedding import embedding_component
-from private_gpt.components.ingest.ingest_component import BaseIngestComponentLangchain, \
+from langchain.embeddings import HuggingFaceEmbeddings
+from components.ingest.ingest_component import BaseIngestComponentLangchain, \
     get_ingestion_component_langchain
-from private_gpt.paths import models_cache_path
-from private_gpt.settings.settings import settings
+from paths import models_cache_path
+from settings.settings import settings
 
 
 embedding_component = HuggingFaceEmbeddings(
