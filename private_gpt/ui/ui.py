@@ -575,15 +575,11 @@ class PrivateGptUi:
                 yield from self.bot(history, context, Modes.DOC, top_k, top_p, temp, uid, scores)
 
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
-        logger.debug("Loading count=%s files", len(files))
+        logger.info("Loading count=%s files", len(files))
         self.load_model(is_load_model=False)
-
         python_file = os.path.join(PROJECT_ROOT_PATH, "upload_files.py")
         list_files = [f.name for f in files]
         subprocess.call([".venv/bin/python3", python_file] + list_files)
-
-        # subprocess.call(f"python3 {python_file} {[f.name for f in files]} {chunk_size} {chunk_overlap}", shell=True)
-        # message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
         self.load_model(is_load_model=True)
         return "Файлы загружены", self._list_ingested_files()
 
