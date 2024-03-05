@@ -287,12 +287,8 @@ class PrivateGptUi:
             self._chat_service.llm.reset()
             self._chat_service.llm.set_cache(None)
             del self._chat_service.llm
-            del self._chat_service.index
-            del self._ingest_service.ingest_component.embedding_component
             gc.collect()
             torch.cuda.empty_cache()
-            self._ingest_service.ingest_component.embedding_component = self.init_embedding()
-            self._chat_service.index = self.init_db()
 
     def get_current_model(self):
         return os.path.basename(self._chat_service.llm.model_path)
