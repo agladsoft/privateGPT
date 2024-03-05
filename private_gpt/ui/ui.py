@@ -273,16 +273,10 @@ class PrivateGptUi:
         if is_load_model:
             logger.info("Loaded files")
             time.sleep(5)
-            del self._chat_service.index
-            del self._ingest_service.ingest_component.embedding_component
-            gc.collect()
-            torch.cuda.empty_cache()
-            logger.info("Cleared db and embeddings")
-            time.sleep(5)
             self._ingest_service.ingest_component.embedding_component = self.init_embedding()
             self._chat_service.index = self.init_db()
-            self._chat_service.llm = self.init_model()
             gr.Info("Сервер будет перезагружаться, обновите страницу через 3 минуты")
+            self._chat_service.llm = self.init_model()
         else:
             logger.info("Clear model")
             self._chat_service.llm.reset()
