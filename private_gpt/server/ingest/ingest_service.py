@@ -90,7 +90,7 @@ class IngestService:
                 path_to_tmp.unlink()
 
     def bulk_ingest(self, files: List[str], chunk_size: int, chunk_overlap: int):
-        logger.info("Ingesting file_names=%s", [f for f in files])
+        logger.debug("Ingesting file_names=%s", [f for f in files])
         return self.ingest_component.bulk_ingest(files, chunk_size, chunk_overlap)
 
     def list_ingested(self) -> list[IngestedDoc]:

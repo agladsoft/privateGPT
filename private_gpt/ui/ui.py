@@ -282,13 +282,12 @@ class PrivateGptUi:
             self._ingest_service.ingest_component.embedding_component = self.init_embedding()
             self._chat_service.index = self.init_db()
             self._chat_service.llm = self.init_model()
+            gr.Info("Сервер будет перезагружаться, обновите страницу через 3 минуты")
         else:
             logger.info("Clear model")
             self._chat_service.llm.reset()
             self._chat_service.llm.set_cache(None)
             del self._chat_service.llm
-            gc.collect()
-            torch.cuda.empty_cache()
 
     def get_current_model(self):
         return os.path.basename(self._chat_service.llm.model_path)
@@ -575,13 +574,11 @@ class PrivateGptUi:
                 yield from self.bot(history, context, Modes.DOC, top_k, top_p, temp, uid, scores)
 
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
-        logger.info("Loading count=%s files", len(files))
+        logger.debug("Loading count=%s files", len(files))
         self.load_model(is_load_model=False)
-        python_file = os.path.join(PROJECT_ROOT_PATH, "upload_files.py")
-        list_files = [f.name for f in files]
-        subprocess.call([".venv/bin/python3", python_file] + list_files)
+        message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
         self.load_model(is_load_model=True)
-        return "Файлы загружены", self._list_ingested_files()
+        return message, self._list_ingested_files()
 
     def get_analytics(self):
         try:
