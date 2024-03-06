@@ -274,8 +274,6 @@ class PrivateGptUi:
         if is_load_model:
             logger.info("Loaded files")
             gr.Info("Сервер будет перезагружаться, обновите страницу")
-            self._ingest_service.ingest_component.embedding_component = self.init_embedding()
-            self._chat_service.index = self.init_db()
             time.sleep(5)
             sys.exit(1)
         else:
