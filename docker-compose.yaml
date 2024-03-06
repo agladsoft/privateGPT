@@ -4,6 +4,8 @@ services:
     container_name: private_gpt
     build: .
     restart: always
+    restart_policy:
+      condition: on-failure
     volumes:
       - ./local_data/:/home/worker/app/local_data/
       - ./models/:/home/worker/app/models/
