@@ -274,6 +274,7 @@ class PrivateGptUi:
         if is_load_model:
             logger.info("Loaded files")
             gr.Info("Сервер будет перезагружаться, обновите страницу через 1 минуту")
+            time.sleep(10)
             sys.exit(1)
         else:
             logger.info("Clear model")
