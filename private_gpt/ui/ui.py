@@ -278,7 +278,6 @@ class PrivateGptUi:
             self._chat_service.index = self.init_db()
             gr.Info("Сервер будет перезагружаться, обновите страницу через 1 минуту")
             sys.exit(1)
-            self._chat_service.llm = self.init_model()
         else:
             logger.info("Clear model")
             self._chat_service.llm.reset()
