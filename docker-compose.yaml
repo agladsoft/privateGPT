@@ -3,7 +3,7 @@ services:
   private_gpt:
     container_name: private_gpt
     build: .
-    restart: on-failure
+    restart: always
     volumes:
       - ./local_data/:/home/worker/app/local_data/
       - ./models/:/home/worker/app/models/
