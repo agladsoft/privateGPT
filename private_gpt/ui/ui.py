@@ -3,6 +3,7 @@ import datetime
 import logging
 import os.path
 import signal
+import sys
 import threading
 import time
 from pathlib import Path
@@ -276,7 +277,7 @@ class PrivateGptUi:
             self._ingest_service.ingest_component.embedding_component = self.init_embedding()
             self._chat_service.index = self.init_db()
             gr.Info("Сервер будет перезагружаться, обновите страницу через 1 минуту")
-            os.kill(1, signal.SIGUSR1)
+            sys.exit(1)
             self._chat_service.llm = self.init_model()
         else:
             logger.info("Clear model")
