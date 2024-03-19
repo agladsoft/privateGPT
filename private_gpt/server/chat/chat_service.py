@@ -1,5 +1,9 @@
+import os
 import logging
+from typing import Tuple, Union, List, Any
 from dataclasses import dataclass
+
+from private_gpt.constants import PROJECT_ROOT_PATH
 
 from injector import inject, singleton
 from llama_index import ServiceContext, StorageContext, VectorStoreIndex
@@ -12,7 +16,7 @@ from llama_index.llms import ChatMessage, MessageRole
 from llama_index.types import TokenGen
 from pydantic import BaseModel
 
-from private_gpt.components.embedding.embedding_component import EmbeddingComponent
+from private_gpt.components.embedding.embedding_component import EmbeddingComponentLangchain
 from private_gpt.components.llm.llm_component import LLMComponent
 from private_gpt.components.node_store.node_store_component import NodeStoreComponent
 from private_gpt.components.vector_store.vector_store_component import (
@@ -21,7 +25,17 @@ from private_gpt.components.vector_store.vector_store_component import (
 from private_gpt.open_ai.extensions.context_filter import ContextFilter
 from private_gpt.server.chunks.chunks_service import Chunk
 
+import chromadb
+from langchain.vectorstores import Chroma
+from private_gpt.paths import local_data_path
+from langchain.embeddings import HuggingFaceEmbeddings
+
 logger = logging.getLogger(__name__)
+
+FILES_DIR = os.path.join(PROJECT_ROOT_PATH, "upload_files")
+os.makedirs(FILES_DIR, exist_ok=True)
+os.chmod(FILES_DIR, 0o0777)
+os.environ['GRADIO_TEMP_DIR'] = FILES_DIR
 
 
 class Completion(BaseModel):
@@ -75,40 +89,64 @@ class ChatService:
         self,
         llm_component: LLMComponent,
         vector_store_component: VectorStoreComponent,
-        embedding_component: EmbeddingComponent,
+        embedding_component: EmbeddingComponentLangchain,
         node_store_component: NodeStoreComponent,
     ) -> None:
-        self.llm_service = llm_component
-        self.vector_store_component = vector_store_component
-        self.storage_context = StorageContext.from_defaults(
-            vector_store=vector_store_component.vector_store,
-            docstore=node_store_component.doc_store,
-            index_store=node_store_component.index_store,
-        )
-        self.service_context = ServiceContext.from_defaults(
-            llm=llm_component.llm, embed_model=embedding_component.embedding_model
-        )
-        self.index = VectorStoreIndex.from_vector_store(
-            vector_store_component.vector_store,
-            storage_context=self.storage_context,
-            service_context=self.service_context,
-            show_progress=True,
-        )
+        self.llm = llm_component.llm
+        self.collection = "all-documents"
+        self.index = None
+
+    def retrieve(
+        self,
+        history,
+        use_context: bool = False,
+        limit: int = 2,
+        uid: str = None
+    ) -> Tuple[str, list]:
+        if not use_context or not history or not history[-1][0]:
+            return "Появятся после задавания вопросов", []
+        last_user_message = history[-1][0]
+        docs = self.index.similarity_search_with_score(last_user_message, limit)
+        scores: list = []
+        data: dict = {}
+        for doc in docs:
+            url = f"""<a href="file/{doc[0].metadata["source"]}" target="_blank" 
+                rel="noopener noreferrer">{os.path.basename(doc[0].metadata["source"])}</a>"""
+            document: str = f'Документ - {url} ↓'
+            score: float = round(doc[1], 2)
+            scores.append(score)
+            if document in data:
+                data[document] += "\n\n" + f"Score: {score}, Text: {doc[0].page_content}"
+            else:
+                data[document] = f"Score: {score}, Text: {doc[0].page_content}"
+        list_data: list = [f"{doc}\n\n{text}" for doc, text in data.items()]
+        logger.info(f"Получили контекст из базы [uid - {uid}]")
+        if not list_data:
+            return "Документов в базе нету", scores
+        return "\n\n\n".join(list_data), scores
 
     def _chat_engine(
         self,
+        limit: int,
         system_prompt: str | None = None,
         use_context: bool = False,
-        context_filter: ContextFilter | None = None,
+        context_filter: ContextFilter | None = None
     ) -> BaseChatEngine:
         if use_context:
             vector_index_retriever = self.vector_store_component.get_retriever(
-                index=self.index, context_filter=context_filter
+                index=self.index, context_filter=context_filter, similarity_top_k=limit
+            )
+            context_template = (
+                "Контекстная информация приведена ниже."
+                "\n--------------------\n"
+                "{context_str}"
+                "\n--------------------\n"
             )
             return ContextChatEngine.from_defaults(
                 system_prompt=system_prompt,
                 retriever=vector_index_retriever,
                 service_context=self.service_context,
+                context_template=context_template,
                 node_postprocessors=[
                     MetadataReplacementPostProcessor(target_metadata_key="window"),
                 ],
@@ -118,46 +156,6 @@ class ChatService:
                 system_prompt=system_prompt,
                 service_context=self.service_context,
             )
-
-    def stream_chat(
-        self,
-        messages: list[ChatMessage],
-        use_context: bool = False,
-        context_filter: ContextFilter | None = None,
-    ) -> CompletionGen:
-        chat_engine_input = ChatEngineInput.from_messages(messages)
-        last_message = (
-            chat_engine_input.last_message.content
-            if chat_engine_input.last_message
-            else None
-        )
-        logger.info(f"Last message is {last_message}")
-        system_prompt = (
-            chat_engine_input.system_message.content
-            if chat_engine_input.system_message
-            else None
-        )
-        chat_history = (
-            chat_engine_input.chat_history if chat_engine_input.chat_history else None
-        )
-
-        chat_engine = self._chat_engine(
-            system_prompt=system_prompt,
-            use_context=use_context,
-            context_filter=context_filter,
-        )
-        logger.info(f"System prompt is {system_prompt}")
-        logger.info(f"Use context is {use_context}")
-        logger.info(f"Context filter is {context_filter}")
-        streaming_response = chat_engine.stream_chat(
-            message=last_message if last_message is not None else "",
-            chat_history=chat_history,
-        )
-        sources = [Chunk.from_node(node) for node in streaming_response.source_nodes]
-        completion_gen = CompletionGen(
-            response=streaming_response.response_gen, sources=sources
-        )
-        return completion_gen
 
     def chat(
         self,

@@ -10,8 +10,7 @@ from llama_index import (
 )
 from llama_index.node_parser import SentenceWindowNodeParser
 
-from private_gpt.components.embedding.embedding_component import EmbeddingComponent
-from private_gpt.components.ingest.ingest_component import get_ingestion_component
+from private_gpt.components.embedding.embedding_component import EmbeddingComponentLangchain
 from private_gpt.components.llm.llm_component import LLMComponent
 from private_gpt.components.node_store.node_store_component import NodeStoreComponent
 from private_gpt.components.vector_store.vector_store_component import (
@@ -19,6 +18,14 @@ from private_gpt.components.vector_store.vector_store_component import (
 )
 from private_gpt.server.ingest.model import IngestedDoc
 from private_gpt.settings.settings import settings
+
+import os
+import pandas as pd
+from typing import Union, List
+from langchain.docstore.document import Document
+from langchain.embeddings import HuggingFaceEmbeddings
+from private_gpt.components.ingest.ingest_component import get_ingestion_component_langchain, BaseIngestComponentLangchain
+
 
 logger = logging.getLogger(__name__)
 
@@ -30,33 +37,36 @@ class IngestService:
         self,
         llm_component: LLMComponent,
         vector_store_component: VectorStoreComponent,
-        embedding_component: EmbeddingComponent,
-        node_store_component: NodeStoreComponent,
+        embedding_component: EmbeddingComponentLangchain,
+        node_store_component: NodeStoreComponent
     ) -> None:
-        self.llm_service = llm_component
-        self.storage_context = StorageContext.from_defaults(
-            vector_store=vector_store_component.vector_store,
-            docstore=node_store_component.doc_store,
-            index_store=node_store_component.index_store,
-        )
-        node_parser = SentenceWindowNodeParser.from_defaults()
-        self.ingest_service_context = ServiceContext.from_defaults(
-            llm=self.llm_service.llm,
-            embed_model=embedding_component.embedding_model,
-            node_parser=node_parser,
-            # Embeddings done early in the pipeline of node transformations, right
-            # after the node parsing
-            transformations=[node_parser, embedding_component.embedding_model],
-        )
+        # self.llm_service = llm_component
+        # self.storage_context = StorageContext.from_defaults(
+        #     vector_store=vector_store_component.vector_store,
+        #     docstore=node_store_component.doc_store,
+        #     index_store=node_store_component.index_store,
+        # )
+        # node_parser = SentenceWindowNodeParser.from_defaults()
+        # self.ingest_service_context = ServiceContext.from_defaults(
+        #     llm=self.llm_service.llm,
+        #     embed_model=embedding_component.embedding_model,
+        #     node_parser=node_parser,
+        #     # Embeddings done early in the pipeline of node transformations, right
+        #     # after the node parsing
+        #     transformations=[node_parser, embedding_component.embedding_model],
+        # )
 
-        self.ingest_component = get_ingestion_component(
-            self.storage_context, self.ingest_service_context, settings=settings()
-        )
+        # self.ingest_component = get_ingestion_component_langchain(
+        #     self.storage_context, self.ingest_service_context, embedding_component, settings=settings()
+        # )
 
-    def ingest(self, file_name: str, file_data: Path) -> list[IngestedDoc]:
+        self.ingest_component: BaseIngestComponentLangchain = \
+            get_ingestion_component_langchain(embedding_component, settings=settings())
+
+    def ingest(self, file_name: str, file_data: Path) -> Union[str, list[IngestedDoc]]:
         logger.info("Ingesting file_name=%s", file_name)
-        documents = self.ingest_component.ingest(file_name, file_data)
-        return [IngestedDoc.from_document(document) for document in documents]
+        message, documents = self.ingest_component.ingest(file_name, file_data)
+        return message, [IngestedDoc.from_document(document) for document in documents]
 
     def ingest_bin_data(
         self, file_name: str, raw_file_data: BinaryIO
@@ -79,10 +89,9 @@ class IngestService:
                 tmp.close()
                 path_to_tmp.unlink()
 
-    def bulk_ingest(self, files: list[tuple[str, Path]]) -> list[IngestedDoc]:
-        logger.info("Ingesting file_names=%s", [f[0] for f in files])
-        documents = self.ingest_component.bulk_ingest(files)
-        return [IngestedDoc.from_document(document) for document in documents]
+    def bulk_ingest(self, files: List[str], chunk_size: int, chunk_overlap: int):
+        logger.debug("Ingesting file_names=%s", [f for f in files])
+        return self.ingest_component.bulk_ingest(files, chunk_size, chunk_overlap)
 
     def list_ingested(self) -> list[IngestedDoc]:
         ingested_docs = []
@@ -112,12 +121,15 @@ class IngestService:
         logger.debug("Found count=%s ingested documents", len(ingested_docs))
         return ingested_docs
 
-    def delete(self, doc_id: str) -> None:
+    def list_ingested_langchain(self):
+        return self.ingest_component._index.get()
+
+    def delete(self, doc_ids: list) -> None:
         """Delete an ingested document.
 
         :raises ValueError: if the document does not exist
         """
         logger.info(
-            "Deleting the ingested document=%s in the doc and index store", doc_id
+            "Deleting the ingested document=%s in the doc and index store", doc_ids
         )
-        self.ingest_component.delete(doc_id)
+        self.ingest_component._index.delete(doc_ids)

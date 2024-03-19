@@ -82,10 +82,8 @@ class DataSettings(BaseModel):
 
 class LLMSettings(BaseModel):
     mode: Literal["local", "openai", "sagemaker", "mock"]
-    max_new_tokens: int = Field(
-        256,
-        description="The maximum number of token that the LLM is authorized to generate in one completion.",
-    )
+    max_new_tokens: int
+    context_window: int
 
 
 class VectorstoreSettings(BaseModel):
@@ -99,7 +97,7 @@ class LocalSettings(BaseModel):
         description="Name of the HuggingFace model to use for embeddings"
     )
     prompt_style: Literal["default", "llama2", "tag"] = Field(
-        "llama2",
+        "default",
         description=(
             "The prompt style to use for the chat engine. "
             "If `default` - use the default prompt style from the llama_index. It should look like `role: message`.\n"

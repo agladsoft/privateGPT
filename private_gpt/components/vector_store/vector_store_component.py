@@ -37,6 +37,22 @@ def _chromadb_doc_id_metadata_filter(
 class VectorStoreComponent:
     vector_store: VectorStore
 
+    @staticmethod
+    def get_retriever(
+        index: VectorStoreIndex,
+        similarity_top_k,
+        context_filter: ContextFilter | None = None,
+    ) -> VectorIndexRetriever:
+        # This way we support qdrant (using doc_ids) and chroma (using where clause)
+        return VectorIndexRetriever(
+            index=index,
+            similarity_top_k=similarity_top_k,
+            doc_ids=context_filter.docs_ids if context_filter else None,
+            vector_store_kwargs={
+                "where": _chromadb_doc_id_metadata_filter(context_filter)
+            },
+        )
+
     @inject
     def __init__(self, settings: Settings) -> None:
         match settings.vectorstore.database:
@@ -96,22 +112,6 @@ class VectorStoreComponent:
                 raise ValueError(
                     f"Vectorstore database {settings.vectorstore.database} not supported"
                 )
-
-    @staticmethod
-    def get_retriever(
-        index: VectorStoreIndex,
-        context_filter: ContextFilter | None = None,
-        similarity_top_k: int = 2,
-    ) -> VectorIndexRetriever:
-        # This way we support qdrant (using doc_ids) and chroma (using where clause)
-        return VectorIndexRetriever(
-            index=index,
-            similarity_top_k=similarity_top_k,
-            doc_ids=context_filter.docs_ids if context_filter else None,
-            vector_store_kwargs={
-                "where": _chromadb_doc_id_metadata_filter(context_filter)
-            },
-        )
 
     def close(self) -> None:
         if hasattr(self.vector_store.client, "close"):

@@ -85,7 +85,7 @@ def chat_completion(
         ChatMessage(content=m.content, role=MessageRole(m.role)) for m in body.messages
     ]
     if body.stream:
-        completion_gen = service.stream_chat(
+        completion_gen = service.retrieve(
             messages=all_messages,
             use_context=body.use_context,
             context_filter=body.context_filter,

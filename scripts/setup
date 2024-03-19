@@ -18,11 +18,11 @@ os.makedirs(models_path, exist_ok=True)
 embedding_path = models_path / "embedding"
 
 print(f"Downloading embedding {settings().local.embedding_hf_model_name}")
-snapshot_download(
-    repo_id=settings().local.embedding_hf_model_name,
-    cache_dir=models_cache_path,
-    local_dir=embedding_path,
-)
+# snapshot_download(
+#     repo_id=settings().local.embedding_hf_model_name,
+#     cache_dir=models_cache_path,
+#     local_dir=embedding_path,
+# )
 print("Embedding model downloaded!")
 print("Downloading models for local execution...")
 

@@ -5,7 +5,7 @@ from llama_index import ServiceContext, StorageContext, VectorStoreIndex
 from llama_index.schema import NodeWithScore
 from pydantic import BaseModel, Field
 
-from private_gpt.components.embedding.embedding_component import EmbeddingComponent
+from private_gpt.components.embedding.embedding_component import EmbeddingComponentLangchain
 from private_gpt.components.llm.llm_component import LLMComponent
 from private_gpt.components.node_store.node_store_component import NodeStoreComponent
 from private_gpt.components.vector_store.vector_store_component import (
@@ -59,7 +59,7 @@ class ChunksService:
         self,
         llm_component: LLMComponent,
         vector_store_component: VectorStoreComponent,
-        embedding_component: EmbeddingComponent,
+        embedding_component: EmbeddingComponentLangchain,
         node_store_component: NodeStoreComponent,
     ) -> None:
         self.vector_store_component = vector_store_component
@@ -68,9 +68,9 @@ class ChunksService:
             docstore=node_store_component.doc_store,
             index_store=node_store_component.index_store,
         )
-        self.query_service_context = ServiceContext.from_defaults(
-            llm=llm_component.llm, embed_model=embedding_component.embedding_model
-        )
+        # self.query_service_context = ServiceContext.from_defaults(
+        #     llm=llm_component.llm, embed_model=embedding_component.embedding_model
+        # )
 
     def _get_sibling_nodes_text(
         self, node_with_score: NodeWithScore, related_number: int, forward: bool = True

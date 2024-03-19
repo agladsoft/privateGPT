@@ -1,14 +1,31 @@
+version: '3.9'
 services:
-  private-gpt:
-    build:
-      dockerfile: Dockerfile.local
+  private_gpt:
+    container_name: private_gpt
+    build: .
+    restart: always
     volumes:
-      - ./local_data/:/home/worker/app/local_data
-      - ./models/:/home/worker/app/models
+      - ./local_data/:/home/worker/app/local_data/
+      - ./models/:/home/worker/app/models/
+      - ./upload_files/:/home/worker/app/upload_files/
+      - ./private_gpt/:/home/worker/app/private_gpt/
+      - ./logging/:/home/worker/app/logging/
     ports:
-      - 8001:8080
+      - "8001:8080"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
       PORT: 8080
       PGPT_PROFILES: docker
       PGPT_MODE: local
+    networks:
+      - db
 
+networks:
+  db:
+    driver: bridge

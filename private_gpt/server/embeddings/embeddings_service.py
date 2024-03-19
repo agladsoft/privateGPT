@@ -3,7 +3,7 @@ from typing import Literal
 from injector import inject, singleton
 from pydantic import BaseModel, Field
 
-from private_gpt.components.embedding.embedding_component import EmbeddingComponent
+from private_gpt.components.embedding.embedding_component import EmbeddingComponentLangchain
 
 
 class Embedding(BaseModel):
@@ -15,7 +15,7 @@ class Embedding(BaseModel):
 @singleton
 class EmbeddingsService:
     @inject
-    def __init__(self, embedding_component: EmbeddingComponent) -> None:
+    def __init__(self, embedding_component: EmbeddingComponentLangchain) -> None:
         self.embedding_model = embedding_component.embedding_model
 
     def texts_embeddings(self, texts: list[str]) -> list[Embedding]:
