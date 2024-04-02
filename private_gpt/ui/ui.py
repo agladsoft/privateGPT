@@ -275,7 +275,7 @@ class PrivateGptUi:
             logger.info("Loaded files")
             gr.Info("Сервер будет перезагружаться, обновите страницу")
             time.sleep(5)
-            sys.exit(1)
+            # sys.exit(1)
         else:
             logger.info("Clear model")
             self._chat_service.llm.reset()
@@ -569,7 +569,11 @@ class PrivateGptUi:
     def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
         logger.debug("Loading count=%s files", len(files))
         self.load_model(is_load_model=False)
-        message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
+        try:
+            message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
+        except Exception as ex:
+            logger.error(f"Error - {ex}")
+            message = "Ошибка загрузки файла"
         self.load_model(is_load_model=True)
         return message, self._list_ingested_files()
 

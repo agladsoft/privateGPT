@@ -39,7 +39,9 @@ FILE_READER_CLS.update(
 LOADER_MAPPING: dict = {
     ".csv": (CSVLoader, {}),
     ".doc": (UnstructuredWordDocumentLoader, {}),
+    ".DOC": (UnstructuredWordDocumentLoader, {}),
     ".docx": (UnstructuredWordDocumentLoader, {}),
+    ".DOCX": (UnstructuredWordDocumentLoader, {}),
     ".enex": (EverNoteLoader, {}),
     ".epub": (UnstructuredEPubLoader, {}),
     ".html": (UnstructuredHTMLLoader, {}),
