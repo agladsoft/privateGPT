@@ -275,7 +275,7 @@ class PrivateGptUi:
             logger.info("Loaded files")
             gr.Info("Сервер будет перезагружаться, обновите страницу")
             time.sleep(5)
-            # sys.exit(1)
+            sys.exit(1)
         else:
             logger.info("Clear model")
             self._chat_service.llm.reset()
