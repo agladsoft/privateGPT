@@ -2,7 +2,6 @@
 import datetime
 import logging
 import os.path
-import signal
 import sys
 import threading
 import time
@@ -34,11 +33,7 @@ from private_gpt.paths import models_path
 from huggingface_hub.file_download import http_get
 from gradio_client.documentation import document
 from private_gpt.templates.template import create_doc
-
-import gc
-import torch
 from private_gpt.settings.settings import settings
-from private_gpt.components.ingest.ingest_component import get_ingestion_component_langchain
 import chromadb
 from langchain.vectorstores import Chroma
 from private_gpt.paths import local_data_path
@@ -474,8 +469,8 @@ class PrivateGptUi:
                 return [[f"Начало отпуска - {list_dates[0]}. Конец отпуска - {list_dates[1]}", None]]
 
     def get_dates_in_question(self, history, model, generator, mode):
-        partial_text = ""
         if mode == Modes.DOC:
+            partial_text = ""
             for i, token in enumerate(generator):
                 if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
                     break
@@ -496,8 +491,10 @@ class PrivateGptUi:
             threshold = 0.44
             if scores and scores[0] < threshold:
                 partial_text += "\n\n\n".join(sources_text)
-            elif scores and scores[0] >= threshold:
-                partial_text += sources_text[0]
+            elif scores:
+                partial_text += f"\n\n⚠️ Похоже, данные в Базе знаний слабо соответствуют вашему запросу. " \
+                                    f"Попробуйте подробнее описать ваш запрос или перейти в режим {MODES[1]}, " \
+                                    f"чтобы общаться с Макаром вне контекста Базы знаний"
             history[-1][1] = partial_text
         elif mode == Modes.DOC:
             file = create_doc(partial_text, "Титова", "Сергея Сергеевича", "Руководитель отдела",
@@ -546,14 +543,13 @@ class PrivateGptUi:
         except Exception as ex:
             logger.error(f"Error - {ex}")
             partial_text += "\nСлишком большой контекст. " \
-                            "Попробуйте уменьшить его или измените количество выдаваемого контекста в настройках"
+                                "Попробуйте уменьшить его или измените количество выдаваемого контекста в настройках"
             history[-1][1] = partial_text
             yield history
             self.semaphore.release()
         f_logger.finfo(f" - [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n\n")
         logger.info(f"Генерация ответа закончена [uid - {uid}]")
-        history = self.get_list_files(history, mode, scores, files, partial_text)
-        yield history
+        yield self.get_list_files(history, mode, scores, files, partial_text)
         self._queue -= 1
         self.semaphore.release()
 
@@ -643,8 +639,8 @@ class PrivateGptUi:
             css=BLOCK_CSS
         ) as blocks:
             logo_svg = f'<img src="{FAVICON_PATH}" width="48px" style="display: inline">'
-            gr.Markdown(
-                f"""<h1><center>{logo_svg} Виртуальный ассистент Рускон</center></h1>"""
+            gr.HTML(
+                f"""<h1><center>{logo_svg} Виртуальный ассистент Рускон (бета-версия)</center></h1>"""
             )
             uid = gr.State(None)
             scores = gr.State(None)
@@ -652,7 +648,7 @@ class PrivateGptUi:
             with gr.Tab("Чат"):
                 with gr.Row():
                     mode = gr.Radio(
-                        MODES,
+                        MODES[:2],
                         value=MODES[0],
                         show_label=False
                     )
@@ -687,12 +683,14 @@ class PrivateGptUi:
                     clear = gr.Button(value="🗑️ Очистить")
 
                 with gr.Row():
-                    gr.Markdown(
+                    gr.HTML(
+                        "<h5>"
                         "<center>Ассистент может допускать ошибки, поэтому рекомендуем проверять важную информацию. "
                         "Ответы также не являются призывом к действию</center>"
+                        "</h5>"
                     )
 
-            with gr.Tab("Документы"):
+            with gr.Tab("Документы", visible=False):
                 with gr.Row():
                     with gr.Column(scale=3):
                         upload_button = gr.Files(
@@ -721,10 +719,11 @@ class PrivateGptUi:
                         )
                         ingested_dataset.render()
 
-            with gr.Tab("Настройки"):
+            with gr.Tab("Настройки", visible=False):
                 with gr.Row(elem_id="model_selector_row"):
-                    models: list = list([f"{settings().local.llm_hf_repo_id.split('/')[1]}/"
-                                         f"{settings().local.llm_hf_model_file}"])
+                    models: list = [
+                        f"{settings().local.llm_hf_repo_id.split('/')[1]}/{settings().local.llm_hf_model_file}"
+                    ]
                     gr.Dropdown(
                         choices=models,
                         value=models[0],
@@ -810,7 +809,7 @@ class PrivateGptUi:
                             show_label=True
                         )
 
-            with gr.Tab("Логи диалогов"):
+            with gr.Tab("Логи диалогов", visible=False):
                 with gr.Row():
                     with gr.Column():
                         analytics = gr.DataFrame(
@@ -943,8 +942,7 @@ class Queue(Queue):
             data: dict | None = None,
     ):
         data = {} if data is None else data
-        messages = self.pending_messages_per_session.get(event.session_hash)
-        if messages:
+        if messages := self.pending_messages_per_session.get(event.session_hash):
             messages.put_nowait({"msg": message_type, "event_id": event._id, **data})
         else:
             PrivateGptUi.semaphore.release()
