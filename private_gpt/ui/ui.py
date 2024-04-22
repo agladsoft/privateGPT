@@ -489,6 +489,7 @@ class PrivateGptUi:
                 for index, source in enumerate(files, start=1)
             ]
             threshold = 0.44
+            logger.info(f"Score is {scores[0]}")
             if scores and scores[0] < threshold:
                 partial_text += "\n\n\n".join(sources_text)
             elif scores:
