@@ -1,12 +1,11 @@
 import os
 import logging
-from typing import Tuple, Union, List, Any
+from typing import Tuple
 from dataclasses import dataclass
 
-from private_gpt.constants import PROJECT_ROOT_PATH
+from private_gpt.constants import FILES_DIR
 
 from injector import inject, singleton
-from llama_index import ServiceContext, StorageContext, VectorStoreIndex
 from llama_index.chat_engine import ContextChatEngine, SimpleChatEngine
 from llama_index.chat_engine.types import (
     BaseChatEngine,
@@ -25,16 +24,8 @@ from private_gpt.components.vector_store.vector_store_component import (
 from private_gpt.open_ai.extensions.context_filter import ContextFilter
 from private_gpt.server.chunks.chunks_service import Chunk
 
-import chromadb
-from langchain.vectorstores import Chroma
-from private_gpt.paths import local_data_path
-from langchain.embeddings import HuggingFaceEmbeddings
-
 logger = logging.getLogger(__name__)
 
-FILES_DIR = os.path.join(PROJECT_ROOT_PATH, "upload_files")
-os.makedirs(FILES_DIR, exist_ok=True)
-os.chmod(FILES_DIR, 0o0777)
 os.environ['GRADIO_TEMP_DIR'] = FILES_DIR
 
 

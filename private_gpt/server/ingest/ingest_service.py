@@ -1,14 +1,9 @@
 import logging
 import tempfile
 from pathlib import Path
-from typing import BinaryIO
+from io import BytesIO
 
 from injector import inject, singleton
-from llama_index import (
-    ServiceContext,
-    StorageContext,
-)
-from llama_index.node_parser import SentenceWindowNodeParser
 
 from private_gpt.components.embedding.embedding_component import EmbeddingComponentLangchain
 from private_gpt.components.llm.llm_component import LLMComponent
@@ -19,11 +14,7 @@ from private_gpt.components.vector_store.vector_store_component import (
 from private_gpt.server.ingest.model import IngestedDoc
 from private_gpt.settings.settings import settings
 
-import os
-import pandas as pd
-from typing import Union, List
-from langchain.docstore.document import Document
-from langchain.embeddings import HuggingFaceEmbeddings
+from typing import List
 from private_gpt.components.ingest.ingest_component import get_ingestion_component_langchain, BaseIngestComponentLangchain
 
 
@@ -63,18 +54,17 @@ class IngestService:
         self.ingest_component: BaseIngestComponentLangchain = \
             get_ingestion_component_langchain(embedding_component, settings=settings())
 
-    def ingest(self, file_name: str, file_data: Path) -> Union[str, list[IngestedDoc]]:
+    def ingest(self, file_name: str):
         logger.info("Ingesting file_name=%s", file_name)
-        message, documents = self.ingest_component.ingest(file_name, file_data)
-        return message, [IngestedDoc.from_document(document) for document in documents]
+        return self.ingest_component.ingest(file_name, 1408, 400)
 
     def ingest_bin_data(
-        self, file_name: str, raw_file_data: BinaryIO
+        self, file_name: str, raw_file_data: BytesIO
     ) -> list[IngestedDoc]:
         logger.debug("Ingesting binary data with file_name=%s", file_name)
         file_data = raw_file_data.read()
         logger.debug("Got file data of size=%s to ingest", len(file_data))
-        # llama-index mainly supports reading from files, so
+        # llama-index mainly supports reading from upload, so
         # we have to create a tmp file to read for it to work
         # delete=False to avoid a Windows 11 permission error.
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
