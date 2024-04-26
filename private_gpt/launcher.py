@@ -30,7 +30,7 @@ def create_app(root_injector: Injector) -> FastAPI:
     # app.include_router(chunks_router)
     # app.include_router(ingest_router)
     # app.include_router(embeddings_router)
-    # app.include_router(health_router)
+    app.include_router(health_router)
     app.include_router(files_router)
 
     settings = root_injector.get(Settings)
