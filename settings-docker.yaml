@@ -17,7 +17,7 @@ sagemaker:
   embedding_endpoint_name: ${PGPT_SAGEMAKER_EMBEDDING_ENDPOINT_NAME:}
 
 ui:
-  enabled: true
+  enabled: false
   path: /
   default_chat_system_prompt: >
     Вы, Макар - полезный, уважительный и честный ассистент.

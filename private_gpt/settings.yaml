@@ -20,7 +20,7 @@ data:
   local_data_folder: ../local_data/private_gpt
 
 ui:
-  enabled: true
+  enabled: false
   path: /
   default_chat_system_prompt: >
     Вы, Макар - полезный, уважительный и честный ассистент.
