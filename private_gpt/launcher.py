@@ -4,6 +4,7 @@ import logging
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from injector import Injector
+from starlette.middleware.sessions import SessionMiddleware
 
 from private_gpt.server.chat.chat_router import chat_router
 from private_gpt.server.chunks.chunks_router import chunks_router
@@ -11,6 +12,7 @@ from private_gpt.server.completions.completions_router import completions_router
 from private_gpt.server.embeddings.embeddings_router import embeddings_router
 from private_gpt.server.health.health_router import health_router
 from private_gpt.server.ingest.ingest_router import ingest_router
+from private_gpt.server.auth.auth_router import auth_router
 from private_gpt.settings.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -23,6 +25,7 @@ def create_app(root_injector: Injector) -> FastAPI:
         request.state.injector = root_injector
 
     app = FastAPI(dependencies=[Depends(bind_injector_to_request)])
+    app.add_middleware(SessionMiddleware, secret_key="SECRET_KEY")
 
     app.include_router(completions_router)
     app.include_router(chat_router)
@@ -30,6 +33,7 @@ def create_app(root_injector: Injector) -> FastAPI:
     app.include_router(ingest_router)
     app.include_router(embeddings_router)
     app.include_router(health_router)
+    app.include_router(auth_router)
 
     settings = root_injector.get(Settings)
     if settings.server.cors.enabled:

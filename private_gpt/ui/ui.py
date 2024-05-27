@@ -35,6 +35,8 @@ from gradio_client.documentation import document
 from private_gpt.templates.template import create_doc
 from private_gpt.settings.settings import settings
 import chromadb
+import requests
+from gradio_modal import Modal
 from langchain.vectorstores import Chroma
 from private_gpt.paths import local_data_path
 from langchain.embeddings import HuggingFaceEmbeddings
@@ -56,38 +58,9 @@ THIS_DIRECTORY_RELATIVE = Path(__file__).parent.relative_to(PROJECT_ROOT_PATH)
 # Should be "private_gpt/ui/avatar-bot.ico"
 AVATAR_USER = THIS_DIRECTORY_RELATIVE / "icons8-человек-96.png"
 AVATAR_BOT = THIS_DIRECTORY_RELATIVE / "icons8-bot-96.png"
-JS = """
-function disable_btn() {
-    var elements = document.getElementsByClassName('wrap default minimal svelte-1occ011 translucent');
-
-    for (var i = 0; i < elements.length; i++) {
-        if (elements[i].classList.contains('generating') || !elements[i].classList.contains('hide')) {
-            // Выполнить любое действие здесь
-            console.log('Элемент содержит класс generating');
-            // Например:
-            document.getElementById('component-35').disabled = true
-            setTimeout(() => { document.getElementById('component-35').disabled = false }, 180000);
-        }
-    }
-}
-"""
-
-UI_TAB_TITLE = "Ruscon AI"
-
-SOURCES_SEPARATOR = "\n\n Документы: \n"
-
-MODES = ["ВНД", "Свободное общение", "Получение документов"]
-MAX_NEW_TOKENS: int = 1500
-LINEBREAK_TOKEN: int = 13
-SYSTEM_TOKEN: int = 1788
-USER_TOKEN: int = 1404
-BOT_TOKEN: int = 9225
-
-ROLE_TOKENS: dict = {
-    "user": USER_TOKEN,
-    "bot": BOT_TOKEN,
-    "system": SYSTEM_TOKEN
-}
+LOGIN_ICON = THIS_DIRECTORY_RELATIVE / "login.png"
+LOGOUT_ICON = THIS_DIRECTORY_RELATIVE / "logout.png"
+MESSAGE_LOGIN = "Введите логин и пароль, чтобы войти"
 
 BLOCK_CSS = """
 
@@ -114,7 +87,68 @@ tr span {
     color: white;
 }
 
+.modal-container.svelte-7knbu5 {
+    max-width: 50%
+}
+
+.gap.svelte-1m1obck {
+    padding: 4%
+}
+
+#login_btn {
+    margin-left: auto;
+}
+
 """
+
+JS = """
+function disable_btn() {
+    var elements = document.getElementsByClassName('wrap default minimal svelte-1occ011 translucent');
+
+    for (var i = 0; i < elements.length; i++) {
+        if (elements[i].classList.contains('generating') || !elements[i].classList.contains('hide')) {
+            // Выполнить любое действие здесь
+            console.log('Элемент содержит класс generating');
+            // Например:
+            document.getElementById('component-35').disabled = true
+            setTimeout(() => { document.getElementById('component-35').disabled = false }, 180000);
+        }
+    }
+}
+"""
+
+LOCAL_STORAGE = """
+function() {
+    globalThis.setStorage = (key, value) => {
+        localStorage.setItem(key, JSON.stringify(value))
+    }
+    globalThis.removeStorage = (key) => {
+        localStorage.removeItem(key)
+    }
+    globalThis.getStorage = (key, value) => {
+        return JSON.parse(localStorage.getItem(key))
+    }
+    const access_token = getStorage('access_token')
+    return [access_token];
+}
+"""
+
+UI_TAB_TITLE = "Ruscon AI"
+
+SOURCES_SEPARATOR = "\n\n Документы: \n"
+
+MODES = ["ВНД", "Свободное общение", "Получение документов"]
+MAX_NEW_TOKENS: int = 1500
+LINEBREAK_TOKEN: int = 13
+SYSTEM_TOKEN: int = 1788
+USER_TOKEN: int = 1404
+BOT_TOKEN: int = 9225
+
+ROLE_TOKENS: dict = {
+    "user": USER_TOKEN,
+    "bot": BOT_TOKEN,
+    "system": SYSTEM_TOKEN
+}
 
 
 class Modes:
@@ -226,6 +260,8 @@ class PrivateGptUi:
         self.mode = MODES[0]
         self._system_prompt = self._get_default_system_prompt(self.mode)
         self.tiny_db = TinyDB(f'{DATA_QUESTIONS}/tiny_db.json', indent=4, ensure_ascii=False)
+
+        self.auth_token = None
 
     @staticmethod
     def init_model():
@@ -544,7 +580,7 @@ class PrivateGptUi:
         except Exception as ex:
             logger.error(f"Error - {ex}")
             partial_text += "\nСлишком большой контекст. " \
-                                "Попробуйте уменьшить его или измените количество выдаваемого контекста в настройках"
+                            "Попробуйте уменьшить его или измените количество выдаваемого контекста в настройках"
             history[-1][1] = partial_text
             yield history
             self.semaphore.release()
@@ -577,22 +613,66 @@ class PrivateGptUi:
             return pd.DataFrame(self.tiny_db.all())
 
     @staticmethod
-    def login(username: str = "timur", password: str = "12345678") -> bool:
+    def login(username, password):
         """
 
         :param username:
         :param password:
         :return:
         """
-        import csv
+        response = requests.post(
+            "http://localhost:8001/token",
+            data={"username": username, "password": password},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        if response.status_code == 200:
+            return {"access_token": response.json()["access_token"], "is_success": True}
+        logger.error(response.json()["detail"])
+        return {"access_token": None, "is_success": False, "message": response.json()["detail"]}
 
-        AUTH_FILE = os.path.join(PROJECT_ROOT_PATH, "server/utils/auth.csv")
-        with open(AUTH_FILE) as f:
-            file_data: csv.reader = csv.reader(f)
-            headers: list[str] = next(file_data)
-            users: list[dict[str, str]] = [dict(zip(headers, i)) for i in file_data]
-        user_from_db = list(filter(lambda user: user["username"] == username and user["password"] == password, users))
-        return bool(user_from_db)
+    @staticmethod
+    def get_current_user_info(local_data):
+        """
+
+        :param local_data:
+        :return:
+        """
+        if isinstance(local_data, dict) and local_data.get("is_success", False):
+            response = requests.get(
+                "http://localhost:8001/users/me",
+                headers={"Authorization": f"Bearer {local_data['access_token']}"}
+            )
+            logger.info(f"User is {response.json().get('username')}")
+            is_logged_in = response.status_code == 200
+        else:
+            is_logged_in = False
+
+        obj_tabs = [local_data] + [gr.update(visible=is_logged_in) for _ in range(3)]
+        if is_logged_in:
+            obj_tabs.append(gr.update(value="Выйти", icon=str(LOGOUT_ICON)))
+        else:
+            obj_tabs.append(gr.update(value="Войти", icon=str(LOGIN_ICON)))
+        obj_tabs.append(gr.update(visible=not is_logged_in))
+        if isinstance(local_data, dict):
+            obj_tabs.append(local_data.get("message", MESSAGE_LOGIN))
+
+        return obj_tabs
+
+    def login_or_logout(self, local_data, login_btn):
+        """
+
+        :param local_data:
+        :param login_btn:
+        :return:
+        """
+        data = self.get_current_user_info(local_data)
+        if isinstance(data[0], dict) and data[0].get("access_token"):
+            obj_tabs = [gr.update(visible=False)] + [gr.update(visible=False) for _ in range(3)]
+            obj_tabs.append(gr.update(value="Войти", icon=str(LOGIN_ICON)))
+            return obj_tabs
+        obj_tabs = [gr.update(visible=True)] + [gr.update(visible=False) for _ in range(3)]
+        obj_tabs.append(login_btn)
+        return obj_tabs
 
     def calculate_analytics(self, messages, analyse=None):
         message = messages[-1][0] if messages else None
@@ -619,7 +699,7 @@ class PrivateGptUi:
         return self.get_analytics()
 
     def _build_ui_blocks(self) -> gr.Blocks:
-        logger.debug("Creating the UI blocks")
+        logger.info("Creating the UI blocks")
         with Blocks(
             title=UI_TAB_TITLE,
             theme=gr.themes.Soft().set(
@@ -637,14 +717,20 @@ class PrivateGptUi:
                 button_primary_background_fill_dark="#1f419b",
                 shadow_drop_lg="5px 5px 5px 5px rgb(0 0 0 / 0.1)"
             ),
-            css=BLOCK_CSS
+            css=BLOCK_CSS,
+            js=JS
         ) as blocks:
+            # Ваш логотип и текст заголовка
             logo_svg = f'<img src="{FAVICON_PATH}" width="48px" style="display: inline">'
-            gr.HTML(
-                f"""<h1><center>{logo_svg} Виртуальный ассистент Рускон (бета-версия)</center></h1>"""
-            )
+            header_html = f"""<h1><center>{logo_svg} Виртуальный ассистент Рускон (бета-версия)</center></h1>"""
+
+            with gr.Row():
+                gr.HTML(header_html)
+                login_btn = gr.DuplicateButton("Войти", variant="primary", size="lg", elem_id="login_btn")
+
             uid = gr.State(None)
             scores = gr.State(None)
+            local_data = gr.JSON({}, visible=False)
 
             with gr.Tab("Чат"):
                 with gr.Row():
@@ -691,7 +777,7 @@ class PrivateGptUi:
                         "</h5>"
                     )
 
-            with gr.Tab("Документы", visible=False):
+            with gr.Tab("Документы", visible=False) as documents_tab:
                 with gr.Row():
                     with gr.Column(scale=3):
                         upload_button = gr.Files(
@@ -720,7 +806,7 @@ class PrivateGptUi:
                         )
                         ingested_dataset.render()
 
-            with gr.Tab("Настройки", visible=False):
+            with gr.Tab("Настройки", visible=False) as settings_tab:
                 with gr.Row(elem_id="model_selector_row"):
                     models: list = [
                         f"{settings().local.llm_hf_repo_id.split('/')[1]}/{settings().local.llm_hf_model_file}"
@@ -810,7 +896,7 @@ class PrivateGptUi:
                             show_label=True
                         )
 
-            with gr.Tab("Логи диалогов", visible=False):
+            with gr.Tab("Логи диалогов", visible=False) as logging_tab:
                 with gr.Row():
                     with gr.Column():
                         analytics = gr.DataFrame(
@@ -819,6 +905,56 @@ class PrivateGptUi:
                             wrap=True,
                             # column_widths=[200]
                         )
+
+            with Modal(visible=False) as modal:
+                with gr.Column(variant="panel"):
+                    gr.HTML("<h1><center>Вход</center></h1>")
+                    message_login = gr.HTML(MESSAGE_LOGIN)
+                    login = gr.Textbox(
+                        label="Логин",
+                        placeholder="Введите логин",
+                        show_label=True,
+                        max_lines=1
+                    )
+                    password = gr.Textbox(
+                        label="Пароль",
+                        placeholder="Введите пароль",
+                        show_label=True,
+                        type="password"
+                    )
+                    submit_login = gr.Button("👤 Войти", variant="primary")
+                    cancel_login = gr.Button("⛔ Отмена", variant="secondary")
+
+            submit_login.click(
+                fn=self.login,
+                inputs=[login, password],
+                outputs=[local_data]
+            ).success(
+                fn=self.get_current_user_info,
+                inputs=[local_data],
+                outputs=[local_data, documents_tab, settings_tab, logging_tab, login_btn, modal, message_login]
+            ).success(
+                fn=None,
+                inputs=[local_data],
+                outputs=None,
+                js="(v) => {setStorage('access_token', v)}"
+            )
+
+            login_btn.click(
+                fn=self.login_or_logout,
+                inputs=[local_data, login_btn],
+                outputs=[modal, documents_tab, settings_tab, logging_tab, login_btn]
+            ).success(
+                fn=None,
+                inputs=None,
+                outputs=[local_data],
+                js="() => {removeStorage('access_token')}"
+            )
+            cancel_login.click(
+                fn=lambda: Modal(visible=False),
+                inputs=None,
+                outputs=modal
+            )
 
             mode.change(
                 self._set_current_mode, inputs=mode, outputs=system_prompt_input
@@ -909,6 +1045,14 @@ class PrivateGptUi:
             )
             # blocks.auth = self.login
             # blocks.auth_message = "Введите логин и пароль, чтобы войти"
+
+            blocks.load(
+                fn=self.get_current_user_info,
+                inputs=[local_data],
+                outputs=[local_data, documents_tab, settings_tab, logging_tab, login_btn],
+                js=LOCAL_STORAGE
+            )
+
         return blocks
 
     def get_ui_blocks(self) -> gr.Blocks:
