@@ -726,7 +726,8 @@ class PrivateGptUi:
 
             with gr.Row():
                 gr.HTML(header_html)
-                login_btn = gr.DuplicateButton("Войти", variant="primary", size="lg", elem_id="login_btn")
+                login_btn = gr.DuplicateButton("Войти", variant="primary", size="lg", elem_id="login_btn",
+                                               icon=str(LOGIN_ICON))
 
             uid = gr.State(None)
             scores = gr.State(None)
