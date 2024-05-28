@@ -56,10 +56,13 @@ if not os.path.exists(DATA_QUESTIONS):
 
 THIS_DIRECTORY_RELATIVE = Path(__file__).parent.relative_to(PROJECT_ROOT_PATH)
 # Should be "private_gpt/ui/avatar-bot.ico"
-AVATAR_USER = THIS_DIRECTORY_RELATIVE / "icons8-человек-96.png"
-AVATAR_BOT = THIS_DIRECTORY_RELATIVE / "icons8-bot-96.png"
-LOGIN_ICON = THIS_DIRECTORY_RELATIVE / "login.png"
-LOGOUT_ICON = THIS_DIRECTORY_RELATIVE / "logout.png"
+IMAGES = os.path.join(THIS_DIRECTORY_RELATIVE, "images")
+if not os.path.exists(IMAGES):
+    os.mkdir(IMAGES)
+AVATAR_USER = f"{IMAGES}/icons8-человек-96.png"
+AVATAR_BOT = f"{IMAGES}/icons8-bot-96.png"
+LOGIN_ICON = f"{IMAGES}/login.png"
+LOGOUT_ICON = f"{IMAGES}/logout.png"
 MESSAGE_LOGIN = "Введите логин и пароль, чтобы войти"
 
 BLOCK_CSS = """
@@ -96,7 +99,8 @@ tr span {
 }
 
 #login_btn {
-    margin-left: auto;
+    width: 250px;
+    height: 40px;
 }
 
 """
