@@ -1,13 +1,19 @@
 from datetime import timezone
 from pydantic import BaseModel
 from jose import JWTError, jwt
+from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
+from private_gpt.server.auth.database import SessionLocal, User, init_db
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
+
+# Инициализация базы данных и добавление пользователя admin
+init_db()
+
 # Секретный ключ для подписания JWT
-SECRET_KEY = "your_secret_key"
+SECRET_KEY = "5CAD0F6498BCFFE793AD9E30831B409FEDE3EAAEF5E8B785737A690E774E923B"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 336
 
@@ -20,14 +26,6 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # Объект для работы с формой аутентификации
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# "База данных" пользователей для примера
-fake_users_db = {
-    "admin": {
-        "username": "admin",
-        "hashed_password": pwd_context.hash("6QVnYsC4iSzz"),
-    }
-}
-
 
 class Token(BaseModel):
     access_token: str
@@ -38,11 +36,11 @@ class TokenData(BaseModel):
     username: str | None = None
 
 
-class User(BaseModel):
+class UserBase(BaseModel):
     username: str
 
 
-class UserInDB(User):
+class UserInDB(UserBase):
     hashed_password: str
 
 
@@ -51,13 +49,11 @@ def verify_password(plain_password, hashed_password):
 
 
 def get_user(db, username: str):
-    if username in db:
-        user_dict = db[username]
-        return UserInDB(**user_dict)
+    return db.query(User).filter(User.username == username).first()
 
 
-def authenticate_user(fake_db, username: str, password: str):
-    user = get_user(fake_db, username)
+def authenticate_user(db: Session, username: str, password: str):
+    user = get_user(db, username)
     if not user or not verify_password(password, user.hashed_password):
         return False
     return user
@@ -70,9 +66,17 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
+async def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 @auth_router.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(fake_users_db, form_data.username, form_data.password)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user: User = authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -84,10 +88,10 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        detail="Не удалось подтвердить учетные данные",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
@@ -98,12 +102,12 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         token_data = TokenData(username=username)
     except JWTError as e:
         raise credentials_exception from e
-    user = get_user(fake_users_db, username=token_data.username)
+    user = get_user(db, username=token_data.username)
     if user is None:
         raise credentials_exception
     return user
 
 
-@auth_router.get("/users/me", response_model=User)
-async def read_users_me(current_user: User = Depends(get_current_user)):
+@auth_router.get("/users/me", response_model=UserBase)
+async def read_users_me(current_user: UserBase = Depends(get_current_user)):
     return current_user
