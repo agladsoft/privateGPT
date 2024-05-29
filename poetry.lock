@@ -1294,13 +1294,13 @@ grpc = ["grpcio (>=1.44.0,<2.0.0.dev0)"]
 
 [[package]]
 name = "gradio"
-version = "4.15.0"
+version = "4.19.0"
 description = "Python library for easily interacting with trained machine learning models"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "gradio-4.15.0-py3-none-any.whl", hash = "sha256:fd6724d2caf5e3dc4ae4a43f728724cd62cae3095bd52b2873f92134606fe233"},
-    {file = "gradio-4.15.0.tar.gz", hash = "sha256:f471479591c8ac31a0689ff6a7e3109475744e6d611bb3e727728e472109efb8"},
+    {file = "gradio-4.19.0-py3-none-any.whl", hash = "sha256:d09732190acc0f33b5e7ea3235d267472bf74beeea62dabb7a82f93193155e09"},
+    {file = "gradio-4.19.0.tar.gz", hash = "sha256:e77e3ce8a4113865abd1dcf92cc9426d9da4896e0a6fd2824a0c90ec751dd442"},
 ]
 
 [package.dependencies]
@@ -1308,7 +1308,7 @@ aiofiles = ">=22.0,<24.0"
 altair = ">=4.2.0,<6.0"
 fastapi = "*"
 ffmpy = "*"
-gradio-client = "0.8.1"
+gradio-client = "0.10.0"
 httpx = "*"
 huggingface-hub = ">=0.19.3"
 importlib-resources = ">=1.3,<7.0"
@@ -1336,13 +1336,13 @@ oauth = ["authlib", "itsdangerous"]
 
 [[package]]
 name = "gradio-client"
-version = "0.8.1"
+version = "0.10.0"
 description = "Python library for easily interacting with trained machine learning models"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "gradio_client-0.8.1-py3-none-any.whl", hash = "sha256:5a987492905314baf64b50bc12319d8208bbe23bd0c6fb4c2dcd4d9a8825fb56"},
-    {file = "gradio_client-0.8.1.tar.gz", hash = "sha256:0fa5ba334a174dce918ba4f164d573507b7db740cf3b48704284d568f2e9cfd2"},
+    {file = "gradio_client-0.10.0-py3-none-any.whl", hash = "sha256:2bcfe61710f9f1c8f336fa9ff0f5c5f0ea52079233196cd753ad30cccdfd585c"},
+    {file = "gradio_client-0.10.0.tar.gz", hash = "sha256:feaee70f18363d76f81a7d25fc3456f40ed5f92417e642c8f1bf86dc65e3a981"},
 ]
 
 [package.dependencies]
@@ -6179,4 +6179,4 @@ chroma = ["chromadb"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<3.12"
-content-hash = "5a8ff400132e6c3d5bfa73cc060a659960b5b7d92b485e0e4d8fb00546d0a258"
+content-hash = "81877add5554d82ace4bb7ef14dd0fceb6b92f9569d2e3c2bf463be64f8a6bcb"

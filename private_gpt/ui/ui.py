@@ -84,9 +84,12 @@ tr span {
     color: white;
 }
 
-.modal-container.svelte-7knbu5 {
-    max-width: 50%
+@media (min-width: 1024px) {
+    .modal-container.svelte-7knbu5 {
+        max-width: 50% !important
+    }
 }
+
 
 .gap.svelte-1m1obck {
     padding: 4%
