@@ -5,7 +5,6 @@ import os.path
 import sys
 import threading
 import time
-from pathlib import Path
 from typing import Any, List, Literal
 from gradio.queueing import Queue, Event
 import gradio as gr  # type: ignore
@@ -15,12 +14,11 @@ from gradio.blocks import BlockFunction
 from injector import inject, singleton
 from pydantic import BaseModel
 
-from private_gpt.constants import PROJECT_ROOT_PATH
 from private_gpt.di import global_injector
 from private_gpt.server.chat.chat_service import ChatService
 from private_gpt.server.chunks.chunks_service import Chunk, ChunksService
 from private_gpt.server.ingest.ingest_service import IngestService
-from private_gpt.ui.images import FAVICON_PATH, QRCODE_PATH
+from private_gpt.ui.images import *
 from private_gpt.ui.logging_custom import FileLogger
 
 import re
@@ -41,6 +39,8 @@ from langchain.vectorstores import Chroma
 from private_gpt.paths import local_data_path
 from langchain.embeddings import HuggingFaceEmbeddings
 from private_gpt.paths import models_cache_path
+import socket
+import qrcode.image.svg
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 logger = logging.getLogger(__name__)
@@ -54,16 +54,10 @@ DATA_QUESTIONS = os.path.join(PROJECT_ROOT_PATH, "data_questions")
 if not os.path.exists(DATA_QUESTIONS):
     os.mkdir(DATA_QUESTIONS)
 
-THIS_DIRECTORY_RELATIVE = Path(__file__).parent.relative_to(PROJECT_ROOT_PATH)
-# Should be "private_gpt/ui/avatar-bot.ico"
-IMAGES = os.path.join(THIS_DIRECTORY_RELATIVE, "images")
-if not os.path.exists(IMAGES):
-    os.mkdir(IMAGES)
-AVATAR_USER = f"{IMAGES}/icons8-человек-96.png"
-AVATAR_BOT = f"{IMAGES}/icons8-bot-96.png"
-LOGIN_ICON = f"{IMAGES}/login.png"
-LOGOUT_ICON = f"{IMAGES}/logout.png"
-MESSAGE_LOGIN = "Введите логин и пароль, чтобы войти"
+img = qrcode.make(f"{socket.gethostbyname(socket.gethostname())}:{settings().server.port}")
+with open(QRCODE_PATH, 'wb') as qr:
+    img.save(qr)
+
 
 BLOCK_CSS = """
 
@@ -824,10 +818,7 @@ class PrivateGptUi:
                         container=False,
                     )
                 with gr.Accordion("QR Code", open=False):
-                    qrcode = f'<img src="{QRCODE_PATH}"'
-                    gr.Markdown(
-                        f"""<h1><center>{qrcode} QR CODE</center></h1>"""
-                    )
+                    gr.Image(QRCODE_PATH, width=400, height=400)
                 with gr.Accordion("Параметры", open=False):
                     with gr.Tab(label="Параметры извлечения фрагментов из текста"):
                         limit = gr.Slider(
