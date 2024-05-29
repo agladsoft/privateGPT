@@ -380,12 +380,11 @@ class PrivateGptUi:
             os.path.basename(ingested_document["source"])
             for ingested_document in db["metadatas"]
         }
-        return pd.DataFrame({"Название файлов": list(files)})
+        return list(files)
 
-    def delete_doc(self, documents: str):
-        logger.info(f"Documents is {documents}")
+    def delete_doc(self, list_documents: str):
+        logger.info(f"Documents is {list_documents}")
         for_delete_ids: list = []
-        list_documents: list[str] = documents.strip().split("\n")
         db = self._ingest_service.list_ingested_langchain()
 
         for ingested_document, doc_id in zip(db["metadatas"], db["ids"]):
@@ -394,7 +393,7 @@ class PrivateGptUi:
                 for_delete_ids.append(doc_id)
         if for_delete_ids:
             self._ingest_service.delete(for_delete_ids)
-        return "", self._list_ingested_files()
+        return gr.update(choices=self._list_ingested_files())
 
     def user(self, message, history):
         uid = uuid.uuid4()
@@ -787,26 +786,16 @@ class PrivateGptUi:
                             file_count="multiple"
                         )
                         file_warning = gr.Markdown("Фрагменты ещё не загружены!")
-                        find_doc = gr.Textbox(
-                            label="Отправить сообщение",
-                            show_label=False,
-                            info=" Напишите названия файлов, которые нужно удалить из базы ",
-                            placeholder="👉 Напишите название документа",
-                            container=False
+
+                    with gr.Column(scale=7):
+                        list_files = self._list_ingested_files()
+                        files_selected = gr.Dropdown(
+                            choices=list_files,
+                            label="Выберите файлы для удаления",
+                            value=None,
+                            multiselect=True
                         )
                         delete = gr.Button("🧹 Удалить", variant="primary")
-                    with gr.Column(scale=7):
-                        ingested_dataset = gr.List(
-                            self._list_ingested_files,
-                            headers=["Название файлов"],
-                            interactive=False,
-                            render=False,  # Rendered under the button
-                        )
-                        ingested_dataset.change(
-                            self._list_ingested_files,
-                            outputs=ingested_dataset,
-                        )
-                        ingested_dataset.render()
 
             with gr.Tab("Настройки", visible=False) as settings_tab:
                 with gr.Row(elem_id="model_selector_row"):
@@ -962,14 +951,14 @@ class PrivateGptUi:
             upload_button.upload(
                 self._upload_file,
                 inputs=[upload_button, chunk_size, chunk_overlap],
-                outputs=[file_warning, ingested_dataset],
+                outputs=[file_warning, files_selected],
             )
 
             # Delete documents from db
             delete.click(
                 fn=self.delete_doc,
-                inputs=find_doc,
-                outputs=[find_doc, ingested_dataset]
+                inputs=files_selected,
+                outputs=[files_selected]
             )
 
             # Pressing Enter
