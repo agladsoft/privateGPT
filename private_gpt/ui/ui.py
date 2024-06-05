@@ -35,9 +35,9 @@ from private_gpt.settings.settings import settings
 import chromadb
 import requests
 from gradio_modal import Modal
-from langchain.vectorstores import Chroma
+from langchain_community.vectorstores import Chroma
 from private_gpt.paths import local_data_path
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from private_gpt.paths import models_cache_path
 import socket
 import qrcode.image.svg
@@ -425,39 +425,8 @@ class PrivateGptUi:
         logger.info(f"Остановлено генерирование ответа. UID - [{uid}]")
         self.semaphore.release()
 
-    @staticmethod
-    def get_message_tokens(model, role: str, content: str) -> list:
-        """
-
-        :param model:
-        :param role:
-        :param content:
-        :return:
-        """
-        message_tokens: list = model.tokenize(content.encode("utf-8"))
-        message_tokens.insert(1, ROLE_TOKENS[role])
-        message_tokens.insert(2, LINEBREAK_TOKEN)
-        message_tokens.append(model.token_eos())
-        return message_tokens
-
-    def get_system_tokens(self, model) -> list:
-        """
-
-        :param model:
-        :return:
-        """
-        system_message: dict = {"role": "system", "content": self._system_prompt}
-        return self.get_message_tokens(model, **system_message)
-
     def get_message_generator(self, history, retrieved_docs, mode, top_k, top_p, temp, uid):
         model = self._chat_service.llm
-        tokens = self.get_system_tokens(model)[:]
-        tokens.append(LINEBREAK_TOKEN)
-
-        for user_message, bot_message in history[-4:-1]:
-            message_tokens = self.get_message_tokens(model=model, role="user", content=user_message)
-            tokens.extend(message_tokens)
-
         last_user_message = history[-1][0]
         pattern = r'<a\s+[^>]*>(.*?)</a>'
         files = re.findall(pattern, retrieved_docs)
@@ -474,19 +443,29 @@ class PrivateGptUi:
                                 f"Прошу предоставить ежегодный оплачиваемый отпуск с " \
                                 f"(дата начала отпуска в формате DD.MM.YYYY) по " \
                                 f"(дата окончания отпуска в формате DD.MM.YYYY)."
-        message_tokens = self.get_message_tokens(model=model, role="user", content=last_user_message)
-        tokens.extend(message_tokens)
         logger.info(f"Вопрос был полностью сформирован [uid - {uid}]")
         f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Вопрос: {history[-1][0]} - "
                        f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n")
 
-        role_tokens = [model.token_bos(), BOT_TOKEN, LINEBREAK_TOKEN]
-        tokens.extend(role_tokens)
-        generator = model.generate(
-            tokens,
+        history_user = [
+            {"role": "user", "content": user_message}
+            for user_message, _ in history[-4:-1]
+        ]
+        generator = model.create_chat_completion(
+            messages=[
+                {
+                    "role": "system", "content": self._system_prompt
+                },
+                *history_user,
+                {
+                    "role": "user", "content": last_user_message
+                },
+
+            ],
+            stream=True,
+            temperature=temp,
             top_k=top_k,
-            top_p=top_p,
-            temp=temp
+            top_p=top_p
         )
         return model, generator, files
 
@@ -569,14 +548,14 @@ class PrivateGptUi:
         elif mode == Modes.DOC:
             model, generator, files = self.get_message_generator(history, retrieved_docs, mode, top_k, top_p, temp, uid)
         try:
-            for i, token in enumerate(generator):
-                if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
-                    break
-                letters = model.detokenize([token]).decode("utf-8", "ignore")
-                partial_text += letters
-                f_logger.finfo(letters)
-                history[-1][1] = partial_text
-                yield history
+            token: dict
+            for token in generator:
+                for data in token["choices"]:
+                    letters = data["delta"].get("content", "")
+                    partial_text += letters
+                    f_logger.finfo(letters)
+                    history[-1][1] = partial_text
+                    yield history
         except Exception as ex:
             logger.error(f"Error - {ex}")
             partial_text += "\nСлишком большой контекст. " \
@@ -768,7 +747,7 @@ class PrivateGptUi:
                     dislike = gr.Button(value="👎 Не понравилось")
                     # stop = gr.Button(value="⛔ Остановить")
                     # regenerate = gr.Button(value="🔄 Повторить")
-                    clear = gr.Button(value="🗑️ Очистить")
+                    clear = gr.ClearButton(value="🗑️ Очистить")
 
                 with gr.Row():
                     gr.HTML(

@@ -1,13 +1,9 @@
 import logging
 
 from injector import inject, singleton
-from llama_index import MockEmbedding
-from llama_index.embeddings.base import BaseEmbedding
-
-from private_gpt.paths import models_cache_path
 from private_gpt.settings.settings import Settings
 
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +18,6 @@ class EmbeddingComponent:
         logger.info("Initializing the embedding model in mode=%s", embedding_mode)
         match embedding_mode:
             case "local":
-                from langchain.embeddings import HuggingFaceEmbeddings
-
                 self.embedding_model = None
             # case "sagemaker":
             #

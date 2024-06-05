@@ -19,11 +19,7 @@ from private_gpt.components.vector_store.vector_store_component import (
 from private_gpt.server.ingest.model import IngestedDoc
 from private_gpt.settings.settings import settings
 
-import os
-import pandas as pd
 from typing import Union, List
-from langchain.docstore.document import Document
-from langchain.embeddings import HuggingFaceEmbeddings
 from private_gpt.components.ingest.ingest_component import get_ingestion_component_langchain, BaseIngestComponentLangchain
 
 

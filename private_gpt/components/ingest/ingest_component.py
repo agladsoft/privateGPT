@@ -1,15 +1,11 @@
 import abc
 import logging
 import threading
-import time
-from pathlib import Path
 from typing import Any
 
 from llama_index import (
     Document,
 )
-from llama_index.data_structs import IndexDict
-from llama_index.indices.base import BaseIndex
 
 from private_gpt.paths import local_data_path
 from private_gpt.settings.settings import Settings
@@ -17,8 +13,7 @@ from private_gpt.settings.settings import Settings
 import os
 import chromadb
 from typing import Union, List
-from langchain.vectorstores import Chroma
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import Chroma
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from private_gpt.components.ingest.ingest_helper import IngestionHelperLangchain
 from private_gpt.components.embedding.embedding_component import EmbeddingComponentLangchain
