@@ -5,12 +5,10 @@ import subprocess
 from pathlib import Path
 
 from docx import Document as DocDocument
-from langchain.schema import Document
-# from llama_index import Document
 from llama_index.readers import JSONReader, StringIterableReader
 from llama_index.readers.file.base import DEFAULT_FILE_READER_CLS
 
-from langchain.document_loaders import (
+from langchain_community.document_loaders import (
     CSVLoader,
     EverNoteLoader,
     PDFMinerLoader,
@@ -21,10 +19,12 @@ from langchain.document_loaders import (
     UnstructuredODTLoader,
     UnstructuredPowerPointLoader,
     UnstructuredWordDocumentLoader,
+    UnstructuredExcelLoader
 )
-from typing import Optional, List, Union, Tuple
+from typing import Optional, List
 from langchain.docstore.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,8 @@ FILE_READER_CLS.update(
 
 LOADER_MAPPING: dict = {
     ".csv": (CSVLoader, {}),
+    ".xlsx": (UnstructuredExcelLoader, {}),
+    ".xls": (UnstructuredExcelLoader, {}),
     ".doc": (UnstructuredWordDocumentLoader, {}),
     ".docx": (UnstructuredWordDocumentLoader, {}),
     ".enex": (EverNoteLoader, {}),
@@ -156,6 +158,12 @@ class IngestionHelperLangchain:
 
     @staticmethod
     def _load_file_to_documents(file_name: str) -> Document:
+        def remove_time(date_str):
+            if isinstance(date_str, str):
+                # Поиск даты в формате ГГГГ-ММ-ДД с последующим временем
+                return re.sub(r'\s*00:00:00$', '', date_str)
+            return date_str
+
         logger.debug("Transforming file_name=%s into documents", file_name)
         ext: str = "." + file_name.rsplit(".", 1)[-1]
         assert ext in LOADER_MAPPING
@@ -163,6 +171,19 @@ class IngestionHelperLangchain:
         loader = loader_class(file_name, **loader_args)
         logger.debug("Specific reader found for extension=%s", ext)
         document = loader.load()[0]
-        document.page_content = re.sub(r'(\s{3,}|\n{3,})', lambda match: match.group()[0]*3,
-                                       document.page_content)
+        dict_formats = {
+            ".xlsx": pd.read_excel,
+            ".xls": pd.read_excel,
+            ".csv": pd.read_csv
+        }
+        if ext in dict_formats:
+            df = dict_formats[ext](file_name, dtype=str, keep_default_na=False)
+            df = df.map(remove_time)
+            result_str = "\n\n".join(
+                "\n".join(f"{header}: {row[header]}" for header in df.columns)
+                for _, row in df.iterrows()
+            )
+            document.page_content = result_str.strip()
+        else:
+            document.page_content = re.sub(r'(\s{3,}|\n{3,})', lambda match: match.group()[0]*3, document.page_content)
         return document
