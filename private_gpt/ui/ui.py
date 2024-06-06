@@ -802,10 +802,10 @@ class PrivateGptUi:
                         )
                     with gr.Tab(label="Параметры нарезки"):
                         chunk_size = gr.Slider(
-                            minimum=128,
-                            maximum=1792,
-                            value=1408,
-                            step=128,
+                            minimum=100,
+                            maximum=2000,
+                            value=1800,
+                            step=100,
                             interactive=True,
                             label="Размер фрагментов",
                         )

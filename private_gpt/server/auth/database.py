@@ -6,6 +6,7 @@ from private_gpt.paths import local_data_path
 from sqlalchemy.ext.declarative import declarative_base
 
 DATABASE_URL = f"sqlite:///{local_data_path}/users.db"
+local_data_path.mkdir(parents=True, exist_ok=True)
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

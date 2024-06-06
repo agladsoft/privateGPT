@@ -150,7 +150,6 @@ class IngestionHelperLangchain:
         documents = text_splitter.split_documents(load_documents)
         fixed_documents: List[Document] = []
         for doc in documents:
-            doc.page_content = process_text(doc.page_content)
             if not doc.page_content:
                 continue
             fixed_documents.append(doc)
@@ -163,6 +162,38 @@ class IngestionHelperLangchain:
                 # Поиск даты в формате ГГГГ-ММ-ДД с последующим временем
                 return re.sub(r'\s*00:00:00$', '', date_str)
             return date_str
+
+        def process_tables(file):
+            document_ = DocDocument(file)
+            tables = document_.tables
+            list_tables = []
+            keys = None
+
+            for table in tables:
+                data = []
+                for i, row in enumerate(table.rows):
+                    list_text = [cell.text for cell in row.cells]  # преобразование к списку
+                    if i == 0:
+                        keys = list_text
+                        continue
+                    row_data = "\n".join(f"{key}: {value}" for key, value in zip(keys, list_text))
+                    data.append(row_data)
+                list_tables.append("\n\n".join(data))
+            return list_tables
+
+        def extract_and_replace_tables(file):
+            document_ = DocDocument(file)
+            full_text = []
+            table_texts = process_tables(file)
+            table_index = 0
+
+            for block in document_.element.body:
+                if block.tag.endswith('tbl'):
+                    full_text.append(table_texts[table_index])
+                    table_index += 1
+                elif block.tag.endswith('p'):
+                    full_text.append(block.text)
+            return "\n\n".join(full_text)
 
         logger.debug("Transforming file_name=%s into documents", file_name)
         ext: str = "." + file_name.rsplit(".", 1)[-1]
@@ -184,6 +215,9 @@ class IngestionHelperLangchain:
                 for _, row in df.iterrows()
             )
             document.page_content = result_str.strip()
+        elif ext in {".docx", "doc"}:
+            text = extract_and_replace_tables(file_name)
+            document.page_content = re.sub(r'(\s{3,}|\n{3,})', lambda match: match.group()[0] * 3, text)
         else:
             document.page_content = re.sub(r'(\s{3,}|\n{3,})', lambda match: match.group()[0]*3, document.page_content)
         return document
