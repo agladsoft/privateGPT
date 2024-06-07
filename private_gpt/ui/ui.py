@@ -811,8 +811,8 @@ class PrivateGptUi:
                         )
                         chunk_overlap = gr.Slider(
                             minimum=0,
-                            maximum=400,
-                            value=400,
+                            maximum=800,
+                            value=800,
                             step=10,
                             interactive=True,
                             label="Пересечение"
