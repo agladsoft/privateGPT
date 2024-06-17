@@ -281,7 +281,8 @@ class PrivateGptUi:
             n_gpu_layers=43,
             model_path=path,
             n_ctx=settings().llm.context_window,
-            n_parts=1
+            n_parts=1,
+            chat_format="saiga"
         )
 
     @staticmethod
