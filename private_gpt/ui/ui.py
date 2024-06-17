@@ -54,7 +54,8 @@ DATA_QUESTIONS = os.path.join(PROJECT_ROOT_PATH, "data_questions")
 if not os.path.exists(DATA_QUESTIONS):
     os.mkdir(DATA_QUESTIONS)
 
-img = qrcode.make(f"{socket.gethostbyname(socket.gethostname())}:{settings().server.port}")
+IP_ADDRESS = f"{socket.gethostbyname(socket.gethostname())}:{settings().server.port}"
+img = qrcode.make(IP_ADDRESS)
 with open(QRCODE_PATH, 'wb') as qr:
     img.save(qr)
 
@@ -600,7 +601,7 @@ class PrivateGptUi:
         :return:
         """
         response = requests.post(
-            "http://localhost:8001/token",
+            f"http://{IP_ADDRESS}/token",
             data={"username": username, "password": password},
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
@@ -618,7 +619,7 @@ class PrivateGptUi:
         """
         if isinstance(local_data, dict) and local_data.get("is_success", False):
             response = requests.get(
-                "http://localhost:8001/users/me",
+                f"http://{IP_ADDRESS}/users/me",
                 headers={"Authorization": f"Bearer {local_data['access_token']}"}
             )
             logger.info(f"User is {response.json().get('username')}")
