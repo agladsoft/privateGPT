@@ -6,6 +6,8 @@ import sys
 import threading
 import time
 from typing import Any, List, Literal
+
+import pytesseract as pytesseract
 from gradio.queueing import Queue, Event
 import gradio as gr  # type: ignore
 from fastapi import FastAPI
@@ -27,6 +29,7 @@ import tempfile
 import pandas as pd
 from tinydb import TinyDB, where
 from llama_cpp import Llama
+from llama_cpp.llama_chat_format import Llava16ChatHandler
 from private_gpt.paths import models_path
 from huggingface_hub.file_download import http_get
 from gradio_client.documentation import document
@@ -266,21 +269,27 @@ class PrivateGptUi:
 
     @staticmethod
     def init_model():
-        path = str(models_path / settings().local.llm_hf_model_file)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        if not os.path.exists(path):
-            with open(path, "wb") as f:
-                http_get(
-                    f"https://huggingface.co/{settings().local.llm_hf_repo_id}/resolve/main/"
-                    f"{settings().local.llm_hf_model_file}",
-                    f
-                )
+        os.makedirs(models_path, exist_ok=True)
+        paths = [
+            str(models_path / os.path.basename(settings().local.llm_hf_repo_id[0]) / settings().local.llm_hf_model_file[0]),
+            str(models_path / os.path.basename(settings().local.llm_hf_repo_id[0]) / settings().local.chat_format)
+        ]
+        for path in paths:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            if not os.path.exists(path):
+                with open(path, "wb") as f:
+                    http_get(
+                        f"https://huggingface.co/{settings().local.llm_hf_repo_id[0]}/resolve/main/"
+                        f"{os.path.basename(path)}",
+                        f
+                    )
 
         return Llama(
             n_gpu_layers=43,
-            model_path=path,
+            model_path=paths[0],
             n_ctx=settings().llm.context_window,
-            n_parts=1
+            n_parts=1,
+            chat_handler=Llava16ChatHandler(clip_model_path=paths[1])
         )
 
     @staticmethod
@@ -313,9 +322,6 @@ class PrivateGptUi:
             self._chat_service.llm.reset()
             self._chat_service.llm.set_cache(None)
             del self._chat_service.llm
-
-    def get_current_model(self):
-        return os.path.basename(self._chat_service.llm.model_path)
 
     def _get_context(self, history: list[list[str]], mode: str, limit, uid, *_: Any):
         match mode:
@@ -421,9 +427,14 @@ class PrivateGptUi:
         logger.info(f"Закончена обработка вопроса. UID - [{uid}]")
         return "", history, uid
 
-    def stop(self, uid):
-        logger.info(f"Остановлено генерирование ответа. UID - [{uid}]")
-        self.semaphore.release()
+    @staticmethod
+    def read_text_from_img(image):
+        import easyocr
+
+        reader = easyocr.Reader(['en'])
+        result = reader.readtext(image)
+        print(result)
+        return "\n".join([i[1] for i in result])
 
     def get_message_generator(self, history, retrieved_docs, mode, top_k, top_p, temp, uid):
         model = self._chat_service.llm
@@ -451,6 +462,9 @@ class PrivateGptUi:
             {"role": "user", "content": user_message}
             for user_message, _ in history[-4:-1]
         ]
+        file_name = "/home/timur/Загрузки/XXL.jpg"
+        ocr_text = self.read_text_from_img(file_name)
+        # last_user_message += "\n\nПредварительно распознанные данные из изображения\n. На них особо не стоит опираться" + ocr_text
         generator = model.create_chat_completion(
             messages=[
                 {
@@ -458,7 +472,10 @@ class PrivateGptUi:
                 },
                 *history_user,
                 {
-                    "role": "user", "content": last_user_message
+                    "role": "user", "content": [
+                        {"type": "text", "text": last_user_message},
+                        {"type": "image_url", "image_url": {"url": f"file:///{file_name}"}}
+                    ]
                 },
 
             ],
@@ -745,8 +762,6 @@ class PrivateGptUi:
                 with gr.Row(elem_id="buttons"):
                     like = gr.Button(value="👍 Понравилось")
                     dislike = gr.Button(value="👎 Не понравилось")
-                    # stop = gr.Button(value="⛔ Остановить")
-                    # regenerate = gr.Button(value="🔄 Повторить")
                     clear = gr.ClearButton(value="🗑️ Очистить")
 
                 with gr.Row():
@@ -778,10 +793,12 @@ class PrivateGptUi:
 
             with gr.Tab("Настройки", visible=False) as settings_tab:
                 with gr.Row(elem_id="model_selector_row"):
-                    models: list = [
-                        f"{settings().local.llm_hf_repo_id.split('/')[1]}/{settings().local.llm_hf_model_file}"
+                    models = [
+                        f"{repo_id}/{model_file}"
+                        for repo_id, model_file in
+                        zip(settings().local.llm_hf_repo_id, settings().local.llm_hf_model_file)
                     ]
-                    gr.Dropdown(
+                    model_selected = gr.Dropdown(
                         choices=models,
                         value=models[0],
                         interactive=True,

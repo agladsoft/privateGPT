@@ -91,8 +91,9 @@ class VectorstoreSettings(BaseModel):
 
 
 class LocalSettings(BaseModel):
-    llm_hf_repo_id: str
-    llm_hf_model_file: str
+    llm_hf_repo_id: list
+    llm_hf_model_file: list
+    chat_format: str
     embedding_hf_model_name: str = Field(
         description="Name of the HuggingFace model to use for embeddings"
     )

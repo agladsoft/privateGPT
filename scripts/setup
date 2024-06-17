@@ -28,8 +28,8 @@ print("Downloading models for local execution...")
 
 # Download LLM and create a symlink to the model file
 hf_hub_download(
-    repo_id=settings().local.llm_hf_repo_id,
-    filename=settings().local.llm_hf_model_file,
+    repo_id=settings().local.llm_hf_repo_id[0],
+    filename=settings().local.llm_hf_model_file[0],
     cache_dir=models_cache_path,
     local_dir=models_path,
     resume_download=resume_download,
