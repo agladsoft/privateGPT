@@ -72,7 +72,7 @@ function disable_btn() {
 }
 """
 
-UI_TAB_TITLE = "MakarGPT"
+UI_TAB_TITLE = "Ruscon AI"
 
 SOURCES_SEPARATOR = "\n\n Документы: \n"
 
