@@ -1,8 +1,15 @@
+<<<<<<< HEAD
 import logging
 from typing import List
 from private_gpt.constants import FILES_DIR
 from fastapi import APIRouter, Request, UploadFile, HTTPException, File
 from private_gpt.server.ingest.ingest_service import IngestService
+=======
+from typing import List
+from private_gpt.constants import FILES_DIR
+from fastapi import APIRouter, Request, UploadFile, HTTPException, File
+from private_gpt.server.ingest.ingest_service import IngestService, logger
+>>>>>>> origin/main
 
 # Not authentication or authorization required to get the health status.
 files_router = APIRouter()
@@ -10,8 +17,13 @@ files_router = APIRouter()
 
 @files_router.post("/upload", tags=["Files"])
 def ingest(request: Request, files: List[UploadFile] = File(...)):
+<<<<<<< HEAD
     logging.info(f"Files {files}")
     service = request.state.injector.get(IngestService)
+=======
+    service = request.state.injector.get(IngestService)
+    logger.info(list(request._form.items()))
+>>>>>>> origin/main
     list_files = []
     for file in files:
         if file.filename is None:
