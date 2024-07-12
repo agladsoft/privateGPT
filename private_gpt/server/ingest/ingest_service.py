@@ -85,9 +85,9 @@ class IngestService:
                 tmp.close()
                 path_to_tmp.unlink()
 
-    def bulk_ingest(self, files: List[str], chunk_size: int, chunk_overlap: int):
+    def bulk_ingest(self, files: List[str], chunk_size: int, chunk_overlap: int, uuid):
         logger.debug("Ingesting file_names=%s", [f for f in files])
-        return self.ingest_component.bulk_ingest(files, chunk_size, chunk_overlap)
+        return self.ingest_component.bulk_ingest(files, chunk_size, chunk_overlap, uuid)
 
     def list_ingested(self) -> list[IngestedDoc]:
         ingested_docs = []

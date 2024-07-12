@@ -145,6 +145,8 @@ LINEBREAK_TOKEN: int = 13
 SYSTEM_TOKEN: int = 1788
 USER_TOKEN: int = 1404
 BOT_TOKEN: int = 9225
+CHUNK_SIZE: int = 1408
+CHUNK_OVERLAP: int = 400
 
 ROLE_TOKENS: dict = {
     "user": USER_TOKEN,
@@ -580,12 +582,19 @@ class PrivateGptUi:
             case Modes.DOC:
                 yield from self.bot(history, context, Modes.DOC, top_k, top_p, temp, uid, scores)
 
-    def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
+    def update_doc(self, files: List[tempfile.TemporaryFile], chunk_size, chunk_overlap, uuid, uuid_old):
+        db = self._ingest_service.list_ingested_langchain()
+        pattern = re.compile(fr'{uuid_old}\d*$')
+        self._chat_service.index.delete([x for x in db["ids"] if pattern.match(x)])
+        message = self._ingest_service.bulk_ingest(files, chunk_size, chunk_overlap, uuid)
+        return message, gr.update(choices=self._list_ingested_files())
+
+    def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int, uuid: str = None):
         logger.debug("Loading count=%s files", len(files))
-        self.load_model(is_load_model=False)
-        message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
-        self.load_model(is_load_model=True)
-        return message, self._list_ingested_files()
+        # self.load_model(is_load_model=False)
+        message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap, uuid)
+        # self.load_model(is_load_model=True)
+        return message, gr.update(choices=self._list_ingested_files())
 
     def get_analytics(self):
         try:
@@ -611,8 +620,7 @@ class PrivateGptUi:
         logger.error(response.json()["detail"])
         return {"access_token": None, "is_success": False, "message": response.json()["detail"]}
 
-    @staticmethod
-    def get_current_user_info(local_data):
+    def get_current_user_info(self, local_data):
         """
 
         :param local_data:
@@ -627,7 +635,6 @@ class PrivateGptUi:
             is_logged_in = response.status_code == 200
         else:
             is_logged_in = False
-
         obj_tabs = [local_data] + [gr.update(visible=is_logged_in) for _ in range(3)]
         if is_logged_in:
             obj_tabs.append(gr.update(value="Выйти", icon=str(LOGOUT_ICON)))
@@ -636,7 +643,7 @@ class PrivateGptUi:
         obj_tabs.append(gr.update(visible=not is_logged_in))
         if isinstance(local_data, dict):
             obj_tabs.append(local_data.get("message", MESSAGE_LOGIN))
-
+        obj_tabs.append(gr.update(choices=self._list_ingested_files()))
         return obj_tabs
 
     def login_or_logout(self, local_data, login_btn):
@@ -650,9 +657,11 @@ class PrivateGptUi:
         if isinstance(data[0], dict) and data[0].get("access_token"):
             obj_tabs = [gr.update(visible=False)] + [gr.update(visible=False) for _ in range(3)]
             obj_tabs.append(gr.update(value="Войти", icon=str(LOGIN_ICON)))
+            obj_tabs.append(gr.update(choices=self._list_ingested_files()))
             return obj_tabs
         obj_tabs = [gr.update(visible=True)] + [gr.update(visible=False) for _ in range(3)]
         obj_tabs.append(login_btn)
+        obj_tabs.append(gr.update(choices=self._list_ingested_files()))
         return obj_tabs
 
     def calculate_analytics(self, messages, analyse=None):
@@ -769,9 +778,8 @@ class PrivateGptUi:
                         file_warning = gr.Markdown("Фрагменты ещё не загружены!")
 
                     with gr.Column(scale=7):
-                        list_files = self._list_ingested_files()
                         files_selected = gr.Dropdown(
-                            choices=list_files,
+                            choices=self._list_ingested_files(),
                             label="Выберите файлы для удаления",
                             value=None,
                             multiselect=True
@@ -806,7 +814,7 @@ class PrivateGptUi:
                         chunk_size = gr.Slider(
                             minimum=128,
                             maximum=1792,
-                            value=1408,
+                            value=CHUNK_SIZE,
                             step=128,
                             interactive=True,
                             label="Размер фрагментов",
@@ -814,7 +822,7 @@ class PrivateGptUi:
                         chunk_overlap = gr.Slider(
                             minimum=0,
                             maximum=400,
-                            value=400,
+                            value=CHUNK_OVERLAP,
                             step=10,
                             interactive=True,
                             label="Пересечение"
@@ -901,7 +909,8 @@ class PrivateGptUi:
             ).success(
                 fn=self.get_current_user_info,
                 inputs=[local_data],
-                outputs=[local_data, documents_tab, settings_tab, logging_tab, login_btn, modal, message_login]
+                outputs=[local_data, documents_tab, settings_tab, logging_tab, login_btn, modal, message_login,
+                         files_selected]
             ).success(
                 fn=None,
                 inputs=[local_data],
@@ -912,7 +921,7 @@ class PrivateGptUi:
             login_btn.click(
                 fn=self.login_or_logout,
                 inputs=[local_data, login_btn],
-                outputs=[modal, documents_tab, settings_tab, logging_tab, login_btn]
+                outputs=[modal, documents_tab, settings_tab, logging_tab, login_btn, files_selected]
             ).success(
                 fn=None,
                 inputs=None,
@@ -1018,7 +1027,8 @@ class PrivateGptUi:
             blocks.load(
                 fn=self.get_current_user_info,
                 inputs=[local_data],
-                outputs=[local_data, documents_tab, settings_tab, logging_tab, login_btn],
+                outputs=[local_data, documents_tab, settings_tab, logging_tab, login_btn, modal, message_login,
+                         files_selected],
                 js=LOCAL_STORAGE
             )
 

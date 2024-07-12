@@ -36,7 +36,7 @@ class BaseIngestComponentLangchain(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def bulk_ingest(self, files: List[str], chunk_size: int, chunk_overlap: int) -> list[Document]:
+    def bulk_ingest(self, files: List[str], chunk_size: int, chunk_overlap: int, uuid) -> list[Document]:
         pass
 
     @abc.abstractmethod
@@ -116,7 +116,7 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
         logger.info("Saving the documents in the index and doc store")
         return message
 
-    def bulk_ingest(self, files: str, chunk_size: int, chunk_overlap: int) -> str:
+    def bulk_ingest(self, files: str, chunk_size: int, chunk_overlap: int, uuid) -> str:
         load_documents: List[Document] = [
             IngestionHelperLangchain._load_file_to_documents(path) for path in files
         ]
@@ -124,10 +124,11 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
             chunk_size=chunk_size, chunk_overlap=chunk_overlap
         )
         message, documents = IngestionHelperLangchain.transform_file_into_documents(load_documents, text_splitter)
-        ids: List[str] = [
-            f"{os.path.basename(doc.metadata['source']).replace('.txt', '')}{i}"
-            for i, doc in enumerate(documents)
-        ]
+        if uuid:
+            ids: List[str] = [f"{uuid}{i}" for i, doc in enumerate(documents)]
+        else:
+            ids: List[str] = [f"{os.path.basename(doc.metadata['source']).replace('.txt', '')}{i}"
+                              for i, doc in enumerate(documents)]
         self._save_docs(documents, ids)
         return message
 
