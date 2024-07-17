@@ -135,7 +135,7 @@ class IngestionHelperLangchain:
     @staticmethod
     def transform_file_into_documents(
         load_documents: List[Document], text_splitter: RecursiveCharacterTextSplitter
-    ) -> tuple[str, list[Document]]:
+    ) -> tuple[int, list[Document]]:
         def process_text(text: str) -> Optional[str]:
             """
 
@@ -154,7 +154,7 @@ class IngestionHelperLangchain:
             if not doc.page_content:
                 continue
             fixed_documents.append(doc)
-        return f"Загружено {len(fixed_documents)} фрагментов! Можно задавать вопросы.", fixed_documents
+        return len(fixed_documents), fixed_documents
 
     @staticmethod
     def _load_file_to_documents(file_name: str) -> Document:

@@ -4,10 +4,33 @@ from typing import List
 from private_gpt.constants import FILES_DIR
 from private_gpt.ui.ui import PrivateGptUi, CHUNK_SIZE, CHUNK_OVERLAP
 from fastapi import APIRouter, Request, UploadFile, HTTPException, File
-from private_gpt.server.ingest.ingest_service import IngestService, logger
+
 
 # Not authentication or authorization required to get the health status.
 files_router = APIRouter()
+
+
+def save_files(files: List[UploadFile], directory: str) -> List[str]:
+    file_locations = []
+    for file in files:
+        if file.filename is None:
+            raise HTTPException(400, "No file name provided")
+        file_location = f"{directory}/{file.filename}"
+        with open(file_location, "wb+") as file_object:
+            file_object.write(file.file.read())
+        file_locations.append(file_location)
+    return file_locations
+
+
+def handle_active_status(service, list_files, chunk_size, chunk_overlap, uuid, uuid_return):
+    if uuid_return == '':
+        return service.upload_file(list_files, chunk_size, chunk_overlap, uuid)
+    else:
+        return service.update_file(list_files, chunk_size, chunk_overlap, uuid, uuid_return)
+
+
+def handle_obsolete_status(service, uuid):
+    return service.delete_file(uuid)
 
 
 @files_router.post("/upload_files", tags=["Files"])
@@ -16,48 +39,19 @@ def ingest(request: Request, files: List[UploadFile] = File(...)):
     service = request.state.injector.get(PrivateGptUi)
     dict_form = request._form._dict
     logging.info(dict_form)
-    list_files = []
-    list_files_obj = []
 
-    for file in files:
-        if file.filename is None:
-            raise HTTPException(400, "No file name provided")
-        file_location = f"{FILES_DIR}/{file.filename}"
-        with open(file_location, "wb+") as file_object:
-            file_object.write(file.file.read())
-        list_files.append(file_location)
+    list_files = save_files(files, FILES_DIR)
 
-    # for file in list_files:
     status = "success"
-    if dict_form["status"] == "Действующий" and dict_form["uuid_return"] == '':  # insert
-        try:
-            message = service._ingest_service.bulk_ingest(list_files, CHUNK_SIZE, CHUNK_OVERLAP, dict_form["uuid"])
-        except Exception as ex:
-            logging.error(f"Exception is {ex}")
-            message, status = "The file was not uploaded", "fail"
-        list_files_obj.append({
-            "file": list_files,
-            "message": message,
-            "status": status
-        })
-    elif dict_form["status"] == "Действующий" and dict_form["uuid_return"] != '':  # update
-        try:
-            message = service.update_doc(list_files, CHUNK_SIZE, CHUNK_OVERLAP, dict_form["uuid"], dict_form["uuid_return"])
-        except Exception as ex:
-            logging.error(f"Exception is {ex}")
-            message, status = "The file was not uploaded", "fail"
-        list_files_obj.append({
-            "file": list_files,
-            "message": message,
-            "status": status
-        })
-    elif dict_form["status"] == "Утратил силу":  # delete
-        service.delete_doc([os.path.basename(file) for file in list_files])
-        list_files_obj.append({
-            "file": list_files,
-            "message": "Успешно удален",
-            "status": status
-        })
-    else:
-        pass
-    return list_files_obj
+    try:
+        if dict_form["status"] == "Действующий":
+            message = handle_active_status(service, list_files, CHUNK_SIZE, CHUNK_OVERLAP, dict_form["uuid"], dict_form["uuid_return"])
+        elif dict_form["status"] == "Утратил силу":
+            message = handle_obsolete_status(service, [dict_form["uuid"]])
+        else:
+            return {"file": list_files, "message": "Неизвестный статус", "status": "fail"}
+    except Exception as ex:
+        logging.error(f"Exception is {ex}")
+        return {"file": list_files, "message": "Файл не был загружен", "status": "fail"}
+
+    return {"file": list_files, "message": message[0], "status": status}

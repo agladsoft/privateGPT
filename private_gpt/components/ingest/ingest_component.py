@@ -96,7 +96,7 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
     ) -> None:
         super().__init__(embedding_component, *args, **kwargs)
 
-    def ingest(self, file_name: str, chunk_size: int, chunk_overlap: int) -> Union[str, list[Document]]:
+    def ingest(self, file_name: str, chunk_size: int, chunk_overlap: int) -> Union[int, list[Document]]:
         logger.info("Ingesting file_name=%s", file_name)
         load_documents: List[Document] = [
             IngestionHelperLangchain._load_file_to_documents(path) for path in [file_name]
@@ -116,7 +116,7 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
         logger.info("Saving the documents in the index and doc store")
         return message
 
-    def bulk_ingest(self, files: str, chunk_size: int, chunk_overlap: int, uuid) -> str:
+    def bulk_ingest(self, files: str, chunk_size: int, chunk_overlap: int, uuid) -> int:
         load_documents: List[Document] = [
             IngestionHelperLangchain._load_file_to_documents(path) for path in files
         ]
@@ -125,9 +125,9 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
         )
         message, documents = IngestionHelperLangchain.transform_file_into_documents(load_documents, text_splitter)
         if uuid:
-            ids: List[str] = [f"{uuid}{i}" for i, doc in enumerate(documents)]
+            ids: List[str] = [f"{uuid}_{i}" for i, doc in enumerate(documents)]
         else:
-            ids: List[str] = [f"{os.path.basename(doc.metadata['source']).replace('.txt', '')}{i}"
+            ids: List[str] = [f"{os.path.basename(doc.metadata['source']).replace('.txt', '')}_{i}"
                               for i, doc in enumerate(documents)]
         self._save_docs(documents, ids)
         return message

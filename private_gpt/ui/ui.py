@@ -386,19 +386,6 @@ class PrivateGptUi:
         }
         return list(files)
 
-    def delete_doc(self, list_documents: str):
-        logger.info(f"Documents is {list_documents}")
-        for_delete_ids: list = []
-        db = self._ingest_service.list_ingested_langchain()
-
-        for ingested_document, doc_id in zip(db["metadatas"], db["ids"]):
-            print(ingested_document)
-            if os.path.basename(ingested_document["source"]) in list_documents:
-                for_delete_ids.append(doc_id)
-        if for_delete_ids:
-            self._ingest_service.delete(for_delete_ids)
-        return gr.update(choices=self._list_ingested_files())
-
     def user(self, message, history):
         uid = uuid.uuid4()
         logger.info(f"Обработка вопроса. Очередь - {self._queue}. UID - [{uid}]")
@@ -582,19 +569,34 @@ class PrivateGptUi:
             case Modes.DOC:
                 yield from self.bot(history, context, Modes.DOC, top_k, top_p, temp, uid, scores)
 
-    def update_doc(self, files: List[tempfile.TemporaryFile], chunk_size, chunk_overlap, uuid, uuid_old):
+    def update_file(self, files: List[tempfile.TemporaryFile], chunk_size, chunk_overlap, uuid, uuid_old):
         db = self._ingest_service.list_ingested_langchain()
         pattern = re.compile(fr'{uuid_old}\d*$')
         self._chat_service.index.delete([x for x in db["ids"] if pattern.match(x)])
-        message = self._ingest_service.bulk_ingest(files, chunk_size, chunk_overlap, uuid)
-        return message, gr.update(choices=self._list_ingested_files())
+        len_chunks = self._ingest_service.bulk_ingest(files, chunk_size, chunk_overlap, uuid)
+        return f"Обновлено на {len_chunks} фрагментов! Можно задавать вопросы.", \
+            gr.update(choices=self._list_ingested_files())
 
-    def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int, uuid: str = None):
+    def upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int, uuid: str = None):
         logger.debug("Loading count=%s files", len(files))
         # self.load_model(is_load_model=False)
-        message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap, uuid)
+        len_chunks = self._ingest_service.bulk_ingest(files, chunk_size, chunk_overlap, uuid)
         # self.load_model(is_load_model=True)
-        return message, gr.update(choices=self._list_ingested_files())
+        return f"Загружено {len_chunks} фрагментов! Можно задавать вопросы.", \
+            gr.update(choices=self._list_ingested_files())
+
+    def delete_file(self, uuid):
+        logger.info(f"UUID is {uuid}")
+        for_delete_ids: list = []
+        db = self._ingest_service.list_ingested_langchain()
+
+        for ingested_document, doc_id in zip(db["metadatas"], db["ids"]):
+            if doc_id.rsplit("_", maxsplit=1)[0] in uuid:
+                for_delete_ids.append(doc_id)
+        if for_delete_ids:
+            self._ingest_service.delete(for_delete_ids)
+        return f"Удалено {len(for_delete_ids)} фрагментов! Можно задавать вопросы.", \
+            gr.update(choices=self._list_ingested_files())
 
     def get_analytics(self):
         try:
@@ -939,16 +941,16 @@ class PrivateGptUi:
             )
 
             upload_button.upload(
-                self._upload_file,
+                self.upload_file,
                 inputs=[upload_button, chunk_size, chunk_overlap],
                 outputs=[file_warning, files_selected],
             )
 
             # Delete documents from db
             delete.click(
-                fn=self.delete_doc,
+                fn=self.delete_file,
                 inputs=files_selected,
-                outputs=[files_selected]
+                outputs=[file_warning, files_selected]
             )
 
             # Pressing Enter
