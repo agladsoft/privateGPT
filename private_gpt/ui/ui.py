@@ -571,7 +571,7 @@ class PrivateGptUi:
 
     def update_file(self, files: List[tempfile.TemporaryFile], chunk_size, chunk_overlap, uuid, uuid_old):
         db = self._ingest_service.list_ingested_langchain()
-        pattern = re.compile(fr'{uuid_old}\d*$')
+        pattern = re.compile(fr'{uuid_old}_\d*$')
         self._chat_service.index.delete([x for x in db["ids"] if pattern.match(x)])
         len_chunks = self._ingest_service.bulk_ingest(files, chunk_size, chunk_overlap, uuid)
         return f"Обновлено на {len_chunks} фрагментов! Можно задавать вопросы.", \
@@ -579,20 +579,19 @@ class PrivateGptUi:
 
     def upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int, uuid: str = None):
         logger.debug("Loading count=%s files", len(files))
-        # self.load_model(is_load_model=False)
         len_chunks = self._ingest_service.bulk_ingest(files, chunk_size, chunk_overlap, uuid)
-        # self.load_model(is_load_model=True)
         return f"Загружено {len_chunks} фрагментов! Можно задавать вопросы.", \
             gr.update(choices=self._list_ingested_files())
 
     def delete_file(self, uuid):
         logger.info(f"UUID is {uuid}")
-        for_delete_ids: list = []
         db = self._ingest_service.list_ingested_langchain()
 
-        for ingested_document, doc_id in zip(db["metadatas"], db["ids"]):
-            if doc_id.rsplit("_", maxsplit=1)[0] in uuid:
-                for_delete_ids.append(doc_id)
+        for_delete_ids: list = [
+            doc_id
+            for ingested_document, doc_id in zip(db["metadatas"], db["ids"])
+            if doc_id.rsplit("_", maxsplit=1)[0] in uuid or os.path.basename(ingested_document['source']) in uuid
+        ]
         if for_delete_ids:
             self._ingest_service.delete(for_delete_ids)
         return f"Удалено {len(for_delete_ids)} фрагментов! Можно задавать вопросы.", \
