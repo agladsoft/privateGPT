@@ -1,7 +1,8 @@
-import logging
 import os
+import logging
 from typing import List
 from private_gpt.constants import FILES_DIR
+from private_gpt.settings.settings import settings
 from private_gpt.ui.ui import PrivateGptUi, CHUNK_SIZE, CHUNK_OVERLAP
 from fastapi import APIRouter, Request, UploadFile, HTTPException, File
 
@@ -28,23 +29,31 @@ def save_files(files: List[UploadFile], dict_form, is_upload: bool = True) -> Li
 def handle_active_status(service, files, dict_form):
     if dict_form["uuid_return"] == '':
         list_files = save_files(files, dict_form, is_upload=True)
-        return service.upload_file(list_files, CHUNK_SIZE, CHUNK_OVERLAP, dict_form["uuid"])
+        if service:
+            return service.upload_file(list_files, CHUNK_SIZE, CHUNK_OVERLAP, dict_form["uuid"])
     else:
         list_files = save_files(files, dict_form, is_upload=False)
-        return service.update_file(list_files, CHUNK_SIZE, CHUNK_OVERLAP, dict_form["uuid"], dict_form["uuid_return"])
+        if service:
+            return service.update_file(list_files, CHUNK_SIZE, CHUNK_OVERLAP, dict_form["uuid"], dict_form["uuid_return"])
+    return "Загружены документы",
 
 
 def handle_obsolete_status(service, files, dict_form):
     for file in files:
         os.remove(f"{FILES_DIR}/{dict_form['uuid']}_{file.filename}")
-    return service.delete_file([dict_form["uuid"]])
+    if service:
+        return service.delete_file([dict_form["uuid"]])
+    return "Удалены документы",
 
 
 @files_router.post("/upload_files", tags=["Files"])
 def ingest(request: Request, files: List[UploadFile] = File(...)):
     logging.info(f"Files {files}")
     files_name = [f.filename for f in files]
-    service = request.state.injector.get(PrivateGptUi)
+    if settings().ui.enabled:
+        service = request.state.injector.get(PrivateGptUi)
+    else:
+        service = None
     dict_form = request._form._dict
     logging.info(dict_form)
 
