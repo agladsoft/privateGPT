@@ -41,7 +41,8 @@ def handle_active_status(service, files, dict_form):
 
 def handle_obsolete_status(service, files, dict_form):
     for file in files:
-        os.remove(f"{FILES_DIR}/{dict_form['uuid']}_{file.filename}")
+        path = f"{FILES_DIR}/{dict_form['uuid']}_{file.filename}"
+        os.remove(path) if os.path.exists(path) else None
     if service:
         return service.delete_file([dict_form["uuid"]])
     return "Удалены документы",
