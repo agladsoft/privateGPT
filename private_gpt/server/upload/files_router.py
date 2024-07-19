@@ -31,11 +31,12 @@ def handle_active_status(service, files, dict_form):
         list_files = save_files(files, dict_form, is_upload=True)
         if service:
             return service.upload_file(list_files, CHUNK_SIZE, CHUNK_OVERLAP, dict_form["uuid"])
+        return "Загружены документы",
     else:
         list_files = save_files(files, dict_form, is_upload=False)
         if service:
             return service.update_file(list_files, CHUNK_SIZE, CHUNK_OVERLAP, dict_form["uuid"], dict_form["uuid_return"])
-    return "Загружены документы",
+        return "Обновлены документы",
 
 
 def handle_obsolete_status(service, files, dict_form):
