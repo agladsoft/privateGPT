@@ -66,9 +66,13 @@ def ingest(request: Request, files: List[UploadFile] = File(...)):
         elif dict_form["status"] == "Утратил силу":
             message = handle_obsolete_status(service, files, dict_form)
         else:
-            return {"file": files_name, "message": "Неизвестный статус", "status": "fail"}
+            status = "fail"
+            logging.error(f"details: {{'file': '{files_name}', 'message': 'Неизвестный статус', 'status': {status}}}")
+            return {"file": files_name, "message": "Неизвестный статус", "status": status}
     except Exception as ex:
-        logging.error(f"Exception is {ex}")
-        return {"file": files_name, "message": "Файл не был загружен", "status": "fail"}
-    logging.info({"file": files_name, "message": message[0], "status": status})
+        status = "fail"
+        logging.error(f"Exception is {ex}, "
+                      f"details: {{'file': '{files_name}', 'message': 'Файл не был загружен', 'status': {status}}}")
+        return {"file": files_name, "message": "Файл не был загружен", "status": status}
+    logging.info(f"details: {{'file': '{files_name}', 'message': {message[0]}, 'status': {status}}}")
     return {"file": files_name, "message": message[0], "status": status}
