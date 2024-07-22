@@ -166,11 +166,15 @@ class IngestionHelperLangchain:
 
         logger.debug("Transforming file_name=%s into documents", file_name)
         ext: str = "." + file_name.rsplit(".", 1)[-1]
-        assert ext in LOADER_MAPPING
+        assert ext in LOADER_MAPPING, f"Не поддерживается формат {ext}"
         loader_class, loader_args = LOADER_MAPPING[ext]
         loader = loader_class(file_name, **loader_args)
         logger.debug("Specific reader found for extension=%s", ext)
-        document = loader.load()[0]
+        try:
+            document = loader.load()[0]
+        except OSError as ex:
+            logger.error(f"Exception is {ex}. Type of {type(ex)}")
+            raise BrokenPipeError("Загружен битый файл")
         dict_formats = {
             ".xlsx": pd.read_excel,
             ".xls": pd.read_excel,

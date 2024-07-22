@@ -27,12 +27,12 @@ def handle_active_status(service, file, dict_form):
     if dict_form["uuid_return"] == '':
         file_name = save_files(file, dict_form, is_upload=True)
         if service:
-            return service.upload_file(file_name, CHUNK_SIZE, CHUNK_OVERLAP, dict_form["uuid"])
+            return service.upload_file([file_name], CHUNK_SIZE, CHUNK_OVERLAP, dict_form["uuid"])
         return "Загружен документ",
     else:
         file_name = save_files(file, dict_form, is_upload=False)
         if service:
-            return service.update_file(file_name, CHUNK_SIZE, CHUNK_OVERLAP, dict_form["uuid"], dict_form["uuid_return"])
+            return service.update_file([file_name], CHUNK_SIZE, CHUNK_OVERLAP, dict_form["uuid"], dict_form["uuid_return"])
         return "Обновлен документ",
 
 
