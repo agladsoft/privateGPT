@@ -70,5 +70,5 @@ def ingest(request: Request, files: List[UploadFile] = File(...)):
     except Exception as ex:
         logging.error(f"Exception is {ex}")
         return {"file": files_name, "message": "Файл не был загружен", "status": "fail"}
-
+    logging.info({"file": files_name, "message": message[0], "status": status})
     return {"file": files_name, "message": message[0], "status": status}
