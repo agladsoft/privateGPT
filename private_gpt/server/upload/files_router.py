@@ -1,6 +1,7 @@
 import os
 import logging
 from private_gpt.constants import FILES_DIR
+
 from private_gpt.settings.settings import settings
 from private_gpt.ui.ui import PrivateGptUi, CHUNK_SIZE, CHUNK_OVERLAP
 from fastapi import APIRouter, Request, UploadFile, HTTPException, File
@@ -12,7 +13,7 @@ files_router = APIRouter()
 
 def save_files(file: UploadFile, dict_form, is_upload: bool = True) -> str:
     if file.filename is None or file.filename == "":
-        raise HTTPException(400, "No file name provided")
+        raise FileNotFoundError("Файл не был загружен")
     file_location = f"{FILES_DIR}/{dict_form['uuid']}_{file.filename}"
     if not is_upload:
         path = f"{FILES_DIR}/{dict_form['uuid_return']}_{file.filename}"
@@ -67,7 +68,7 @@ def ingest(request: Request, files: UploadFile = File(...)):
     except Exception as ex:
         status = "fail"
         logging.error(f"Exception is {ex}, "
-                      f"details: {{'file': '{file_name}', 'message': 'Файл не был загружен', 'status': {status}}}")
-        return {"file": file_name, "message": "Файл не был загружен", "status": status}
+                      f"details: {{'file': '{file_name}', 'message': {ex}, 'status': {status}}}")
+        return {"file": file_name, "message": str(ex), "status": status}
     logging.info(f"details: {{'file': '{file_name}', 'message': {message[0]}, 'status': {status}}}")
     return {"file": file_name, "message": message[0], "status": status}
