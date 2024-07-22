@@ -14,7 +14,7 @@ files_router = APIRouter()
 def save_files(files: List[UploadFile], dict_form, is_upload: bool = True) -> List[str]:
     file_locations = []
     for file in files:
-        if file.filename is None:
+        if file.filename is None or file.filename == "":
             raise HTTPException(400, "No file name provided")
         file_location = f"{FILES_DIR}/{dict_form['uuid']}_{file.filename}"
         if not is_upload:
