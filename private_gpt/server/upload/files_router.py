@@ -62,7 +62,7 @@ def ingest(request: Request, files: UploadFile = File(...)):
             message = handle_obsolete_status(service, files, dict_form)
         else:
             logging.error(f"details: {{'file': '{file_name}', 'message': 'Неизвестный статус', 'status': {status}}}")
-            file_name = save_files(files, dict_form, is_upload=True)
+            save_files(files, dict_form, is_upload=True)
             return {"file": file_name, "message": "Неизвестный статус", "status": status}
     except Exception as ex:
         status = "fail"
