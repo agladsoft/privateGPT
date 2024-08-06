@@ -1,6 +1,6 @@
 ### IMPORTANT, THIS IMAGE CAN ONLY BE RUN IN LINUX DOCKER
 ### You will run into a segfault in mac
-FROM nvidia/cuda:12.2.2-devel-ubuntu22.04 as base
+FROM nvidia/cuda:12.2.2-devel-ubuntu20.04 as base
 
 ENV DEBIAN_FRONTEND=noninteractive \
     CMAKE_ARGS="-DLLAMA_CUBLAS=ON" \
