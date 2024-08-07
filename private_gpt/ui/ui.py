@@ -641,6 +641,7 @@ class PrivateGptUi:
         else:
             obj_tabs.append(gr.update(value="Войти", icon=str(LOGIN_ICON)))
         obj_tabs.append(gr.update(visible=not is_logged_in))
+        logger.info(f"Local data is {local_data}. Type is {type(local_data)}")
         if isinstance(local_data, dict):
             obj_tabs.append(local_data.get("message", MESSAGE_LOGIN))
         obj_tabs.append(gr.update(choices=self._list_ingested_files()))
