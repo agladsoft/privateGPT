@@ -620,10 +620,11 @@ class PrivateGptUi:
         logger.error(response.json()["detail"])
         return {"access_token": None, "is_success": False, "message": response.json()["detail"]}
 
-    def get_current_user_info(self, local_data):
+    def get_current_user_info(self, local_data, is_visible: bool = False):
         """
 
         :param local_data:
+        :param is_visible:
         :return:
         """
         if isinstance(local_data, dict) and local_data.get("is_success", False):
@@ -633,6 +634,8 @@ class PrivateGptUi:
             )
             logger.info(f"User is {response.json().get('username')}")
             is_logged_in = response.status_code == 200
+            if is_logged_in:
+                is_visible = False
         else:
             is_logged_in = False
         obj_tabs = [local_data] + [gr.update(visible=is_logged_in) for _ in range(3)]
@@ -640,8 +643,7 @@ class PrivateGptUi:
             obj_tabs.append(gr.update(value="Выйти", icon=str(LOGOUT_ICON)))
         else:
             obj_tabs.append(gr.update(value="Войти", icon=str(LOGIN_ICON)))
-        obj_tabs.append(gr.update(visible=not is_logged_in))
-        logger.info(f"Local data is {local_data}. Type is {type(local_data)}")
+        obj_tabs.append(gr.update(visible=is_visible))
         if isinstance(local_data, dict):
             obj_tabs.append(local_data.get("message", MESSAGE_LOGIN))
         else:
@@ -649,14 +651,15 @@ class PrivateGptUi:
         obj_tabs.append(gr.update(choices=self._list_ingested_files()))
         return obj_tabs
 
-    def login_or_logout(self, local_data, login_btn):
+    def login_or_logout(self, local_data, login_btn, is_visible):
         """
 
         :param local_data:
         :param login_btn:
+        :param is_visible:
         :return:
         """
-        data = self.get_current_user_info(local_data)
+        data = self.get_current_user_info(local_data, is_visible=is_visible)
         if isinstance(data[0], dict) and data[0].get("access_token"):
             obj_tabs = [gr.update(visible=False)] + [gr.update(visible=False) for _ in range(3)]
             obj_tabs.append(gr.update(value="Войти", icon=str(LOGIN_ICON)))
@@ -724,6 +727,7 @@ class PrivateGptUi:
 
             uid = gr.State(None)
             scores = gr.State(None)
+            is_visible = gr.State(True)
             local_data = gr.JSON({}, visible=False)
 
             with gr.Tab("Чат"):
@@ -911,7 +915,7 @@ class PrivateGptUi:
                 outputs=[local_data]
             ).success(
                 fn=self.get_current_user_info,
-                inputs=[local_data],
+                inputs=[local_data, is_visible],
                 outputs=[local_data, documents_tab, settings_tab, logging_tab, login_btn, modal, message_login,
                          files_selected]
             ).success(
@@ -923,7 +927,7 @@ class PrivateGptUi:
 
             login_btn.click(
                 fn=self.login_or_logout,
-                inputs=[local_data, login_btn],
+                inputs=[local_data, login_btn, is_visible],
                 outputs=[modal, documents_tab, settings_tab, logging_tab, login_btn, files_selected]
             ).success(
                 fn=None,
