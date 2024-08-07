@@ -644,6 +644,8 @@ class PrivateGptUi:
         logger.info(f"Local data is {local_data}. Type is {type(local_data)}")
         if isinstance(local_data, dict):
             obj_tabs.append(local_data.get("message", MESSAGE_LOGIN))
+        else:
+            obj_tabs.append(MESSAGE_LOGIN)
         obj_tabs.append(gr.update(choices=self._list_ingested_files()))
         return obj_tabs
 
