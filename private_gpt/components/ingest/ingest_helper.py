@@ -1,9 +1,9 @@
 import os
 import re
+import magic
 import logging
 import subprocess
 from pathlib import Path
-
 from docx import Document as DocDocument
 from llama_index.readers import JSONReader, StringIterableReader
 from llama_index.readers.file.base import DEFAULT_FILE_READER_CLS
@@ -51,6 +51,18 @@ LOADER_MAPPING: dict = {
     ".ppt": (UnstructuredPowerPointLoader, {}),
     ".pptx": (UnstructuredPowerPointLoader, {}),
     ".txt": (TextLoader, {"encoding": "utf8"}),
+}
+
+MIME_TYPE: dict = {
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".doc": "application/msword",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".xls": "application/vnd.ms-excel",
+    ".csv": "text/csv",
+    ".txt": "text/plain",
+    ".pdf": "application/pdf",
+    ".jpg": "image/jpeg",
+    ".png": "image/png"
 }
 
 
@@ -164,8 +176,17 @@ class IngestionHelperLangchain:
                 return re.sub(r'\s*00:00:00$', '', date_str)
             return date_str
 
+        def get_extension(file_name_: str) -> str:
+            mime_type: str = magic.Magic(mime=True).from_file(file_name_)
+            for ext_, mime in MIME_TYPE.items():
+                if mime_type == mime:
+                    return ext_
+            return ""
+
         logger.debug("Transforming file_name=%s into documents", file_name)
-        ext: str = "." + file_name.rsplit(".", 1)[-1]
+        file_name_without_ext, ext = os.path.splitext(file_name)
+        if ext == "" or ext not in MIME_TYPE:
+            ext = get_extension(file_name)
         assert ext in LOADER_MAPPING, f"Не поддерживается формат {ext}"
         loader_class, loader_args = LOADER_MAPPING[ext]
         loader = loader_class(file_name, **loader_args)
