@@ -569,9 +569,7 @@ class PrivateGptUi:
                 yield from self.bot(history, context, Modes.DOC, top_k, top_p, temp, uid, scores)
 
     def update_file(self, files: List[tempfile.TemporaryFile], chunk_size, chunk_overlap, uuid, uuid_old):
-        db = self._ingest_service.list_ingested_langchain()
-        pattern = re.compile(fr'{uuid_old}_\d*$')
-        self._chat_service.index.delete([x for x in db["ids"] if pattern.match(x)])
+        self.delete_file(uuid_old)
         len_chunks = self._ingest_service.bulk_ingest(files, chunk_size, chunk_overlap, uuid)
         return f"Обновлено на {len_chunks} фрагментов! Можно задавать вопросы.", \
             gr.update(choices=self._list_ingested_files())
