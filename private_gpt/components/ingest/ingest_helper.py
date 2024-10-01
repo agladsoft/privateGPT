@@ -5,6 +5,7 @@ import logging
 import subprocess
 from pathlib import Path
 from docx import Document as DocDocument
+# from private_gpt.components.ingest.ocr_pdf import process_pdf
 from llama_index.readers import JSONReader, StringIterableReader
 from llama_index.readers.file.base import DEFAULT_FILE_READER_CLS
 
@@ -159,13 +160,22 @@ class IngestionHelperLangchain:
             text = "\n".join(lines).strip()
             return "" if len(text) < 10 else text
 
-        documents = text_splitter.split_documents(load_documents)
         fixed_documents: List[Document] = []
-        for doc in documents:
-            doc.page_content = process_text(doc.page_content)
-            if not doc.page_content:
+
+        for doc in load_documents:
+            # Проверка на формат Excel по расширению файла
+            if doc.metadata.get("source", "").endswith(".xlsx"):
+                # Не разделяем документ, просто добавляем его в список как есть
+                fixed_documents.append(doc)
                 continue
-            fixed_documents.append(doc)
+
+            # Разделяем остальные документы с помощью text_splitter
+            split_docs = text_splitter.split_documents([doc])
+            for split_doc in split_docs:
+                split_doc.page_content = process_text(split_doc.page_content)
+                if split_doc.page_content:
+                    fixed_documents.append(split_doc)
+
         return len(fixed_documents), fixed_documents
 
     @staticmethod
@@ -209,6 +219,9 @@ class IngestionHelperLangchain:
                 for _, row in df.iterrows()
             )
             document.page_content = result_str.strip()
+        # elif ext == ".pdf":
+        #     text = process_pdf(file_name)
+        #     document.page_content = text
         else:
             document.page_content = re.sub(r'(\s{3,}|\n{3,})', lambda match: match.group()[0]*3, document.page_content)
         return document
