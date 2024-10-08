@@ -451,10 +451,10 @@ class PrivateGptUi:
                     "role": "system", "content": self._system_prompt
                 },
                 *history_user,
+                *history_bot,
                 {
                     "role": "user", "content": last_user_message
-                },
-                *history_bot
+                }
             ],
             stream=True,
             temperature=temp,
