@@ -441,6 +441,10 @@ class PrivateGptUi:
             {"role": "user", "content": user_message}
             for user_message, _ in history[-4:-1]
         ]
+        history_bot = [
+            {"role": "assistant", "content": bot_message}
+            for _, bot_message in history[-4:-1]
+        ]
         generator = model.create_chat_completion(
             messages=[
                 {
@@ -450,7 +454,7 @@ class PrivateGptUi:
                 {
                     "role": "user", "content": last_user_message
                 },
-
+                *history_bot
             ],
             stream=True,
             temperature=temp,
