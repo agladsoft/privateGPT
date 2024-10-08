@@ -206,5 +206,20 @@ class IngestionHelperLangchain:
         except OSError as ex:
             logger.error(f"Exception is {ex}. Type of {type(ex)}")
             raise BrokenPipeError("Загружен битый файл")
-        document.page_content = re.sub(r'(\s{3,}|\n{3,})', lambda match: match.group()[0]*3, document.page_content)
+        dict_formats = {
+            ".xlsx": pd.read_excel,
+            ".xls": pd.read_excel,
+            ".csv": pd.read_csv
+        }
+        if ext in dict_formats:
+            df = dict_formats[ext](file_name, dtype=str, keep_default_na=False)
+            df = df.map(remove_time)
+            result_str = "\n\n".join(
+                "\n".join(f"{header}: {row[header]}" for header in df.columns)
+                for _, row in df.iterrows()
+            )
+            document.page_content = result_str.strip()
+        else:
+            document.page_content = re.sub(r'(\s{3,}|\n{3,})', lambda match: match.group()[0] * 3,
+                                           document.page_content)
         return document
