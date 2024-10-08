@@ -1,46 +1,47 @@
 """This file should be imported only and only if you want to run the UI locally."""
-import datetime
-import logging
-import os.path
-import sys
-import threading
-import time
-from typing import Any, List, Literal
-from gradio.queueing import Queue, Event
-import gradio as gr  # type: ignore
-from fastapi import FastAPI
-from gradio.themes.utils.colors import slate  # type: ignore
-from gradio.blocks import BlockFunction
-from injector import inject, singleton
-from pydantic import BaseModel
-
-from private_gpt.di import global_injector
-from private_gpt.server.chat.chat_service import ChatService
-from private_gpt.server.chunks.chunks_service import Chunk, ChunksService
-from private_gpt.server.ingest.ingest_service import IngestService
-from private_gpt.ui.images import *
-from private_gpt.ui.logging_custom import FileLogger
-
 import re
 import uuid
-import tempfile
-import pandas as pd
-from tinydb import TinyDB, where
-from llama_cpp import Llama
-from private_gpt.paths import models_path
-from huggingface_hub.file_download import http_get
-from gradio_client.documentation import document
-from private_gpt.templates.template import create_doc
-from private_gpt.settings.settings import settings
+import socket
+import logging
+import os.path
+import datetime
+from abc import ABC
+
 import chromadb
 import requests
-from gradio_modal import Modal
-from langchain_community.vectorstores import Chroma
-from private_gpt.paths import local_data_path
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from private_gpt.paths import models_cache_path
-import socket
+import tempfile
+import threading
+import pandas as pd
+import gradio as gr
 import qrcode.image.svg
+from fastapi import FastAPI
+from pydantic import BaseModel
+from gradio_modal import Modal
+from tinydb import TinyDB, where
+from private_gpt.ui.images import *
+from typing import Any, List, Literal
+from injector import inject, singleton
+from gradio.blocks import BlockFunction
+from gradio.queueing import Queue, Event
+from private_gpt.paths import models_path
+from private_gpt.di import global_injector
+from sqlalchemy import create_engine, text
+from private_gpt.paths import local_data_path
+from llama_cpp import Llama
+from langchain_community.llms import LlamaCpp
+from private_gpt.paths import models_cache_path
+from gradio_client.documentation import document
+from huggingface_hub.file_download import http_get
+from private_gpt.settings.settings import settings
+from langchain.chains import create_sql_query_chain
+from langchain_community.vectorstores import Chroma
+from private_gpt.ui.logging_custom import FileLogger
+from langchain_community.utilities import SQLDatabase
+from private_gpt.server.chat.chat_service import ChatService
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from private_gpt.server.ingest.ingest_service import IngestService
+from private_gpt.server.chunks.chunks_service import Chunk, ChunksService
+
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 logger = logging.getLogger(__name__)
@@ -139,7 +140,7 @@ UI_TAB_TITLE = "Ruscon AI"
 
 SOURCES_SEPARATOR = "\n\n Документы: \n"
 
-MODES = ["ВНД", "Свободное общение", "Получение документов"]
+MODES = ["ВНД", "Свободное общение", "SQL"]
 MAX_NEW_TOKENS: int = 1500
 LINEBREAK_TOKEN: int = 13
 SYSTEM_TOKEN: int = 1788
@@ -158,7 +159,7 @@ ROLE_TOKENS: dict = {
 class Modes:
     DB = MODES[0]
     LLM = MODES[1]
-    DOC = MODES[2]
+    SQL = MODES[2]
 
 
 class Blocks(gr.Blocks):
@@ -279,7 +280,7 @@ class PrivateGptUi:
                     f
                 )
 
-        return Llama(
+        return LlamaCpp(
             n_gpu_layers=43,
             model_path=path,
             n_ctx=settings().llm.context_window,
@@ -301,22 +302,6 @@ class PrivateGptUi:
             embedding_function=self._ingest_service.ingest_component.embedding_component,
         )
 
-    def load_model(self, is_load_model: bool):
-        """
-
-        :return:
-        """
-        if is_load_model:
-            logger.info("Loaded files")
-            gr.Info("Сервер будет перезагружаться, обновите страницу")
-            time.sleep(5)
-            sys.exit(1)
-        else:
-            logger.info("Clear model")
-            self._chat_service.llm.reset()
-            self._chat_service.llm.set_cache(None)
-            del self._chat_service.llm
-
     def get_current_model(self):
         return os.path.basename(self._chat_service.llm.model_path)
 
@@ -330,14 +315,7 @@ class PrivateGptUi:
                     uid=uid
                 )
                 return content, mode, scores
-            case Modes.LLM:
-                content, scores = self._chat_service.retrieve(
-                    history=history,
-                    use_context=False,
-                    uid=uid
-                )
-                return content, mode, scores
-            case Modes.DOC:
+            case _:
                 content, scores = self._chat_service.retrieve(
                     history=history,
                     use_context=False,
@@ -355,8 +333,6 @@ class PrivateGptUi:
                 p = settings().ui.default_query_system_prompt
             # For chat mode, obtain default system prompt from settings
             case Modes.LLM:
-                p = settings().ui.default_chat_system_prompt
-            case Modes.DOC:
                 p = settings().ui.default_chat_system_prompt
             # For any other mode, clear the system prompt
             case _:
@@ -425,14 +401,22 @@ class PrivateGptUi:
         if retrieved_docs and mode == Modes.DB:
             last_user_message = f"Контекст: {retrieved_docs}\n\nИспользуя только контекст, ответь на вопрос: " \
                                 f"{last_user_message}"
-        elif mode == Modes.DOC:
-            last_user_message = f"{last_user_message}\n\n" \
-                                f"Сегодня {datetime.datetime.now().strftime('%d.%m.%Y')} число. " \
-                                f"Если в контексте не указан год, то пиши {datetime.date.today().year}. " \
-                                f"Напиши ответ только так, без каких либо дополнений: " \
-                                f"Прошу предоставить ежегодный оплачиваемый отпуск с " \
-                                f"(дата начала отпуска в формате DD.MM.YYYY) по " \
-                                f"(дата окончания отпуска в формате DD.MM.YYYY)."
+        elif mode == Modes.SQL:
+            path_to_db = f"sqlite:///{local_data_path}/users.db"
+            db = SQLDatabase.from_uri(path_to_db)
+            chain = create_sql_query_chain(model, db)
+            response = chain.invoke({"question": last_user_message})
+
+            # Подключение к базе данных SQLite
+            engine = create_engine(path_to_db)
+
+            # Выполнение SQL-запроса
+            with engine.connect() as conn:
+                result = conn.execute(text(response))
+
+                # Извлечение результатов
+                rows = result.fetchall()
+                return rows, response
         logger.info(f"Вопрос был полностью сформирован [uid - {uid}]")
         f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Вопрос: {history[-1][0]} - "
                        f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n")
@@ -457,7 +441,7 @@ class PrivateGptUi:
             top_k=top_k,
             top_p=top_p
         )
-        return model, generator, files
+        return generator, files
 
     @staticmethod
     def calculate_end_date(history):
@@ -472,18 +456,6 @@ class PrivateGptUi:
                 end_date = end_date.strftime('%d.%m.%Y')
                 list_dates.append(end_date)
                 return [[f"Начало отпуска - {list_dates[0]}. Конец отпуска - {list_dates[1]}", None]]
-
-    def get_dates_in_question(self, history, model, generator, mode):
-        if mode == Modes.DOC:
-            partial_text = ""
-            for i, token in enumerate(generator):
-                if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
-                    break
-                letters = model.detokenize([token]).decode("utf-8", "ignore")
-                partial_text += letters
-                f_logger.finfo(letters)
-                history[-1][1] = partial_text
-            return self.calculate_end_date(history)
 
     @staticmethod
     def get_list_files(history, mode, scores, files, partial_text):
@@ -501,11 +473,6 @@ class PrivateGptUi:
                 partial_text += f"\n\n⚠️ Похоже, данные в Базе знаний слабо соответствуют вашему запросу. " \
                                     f"Попробуйте подробнее описать ваш запрос или перейти в режим {MODES[1]}, " \
                                     f"чтобы общаться с ботом вне контекста Базы знаний"
-            history[-1][1] = partial_text
-        elif mode == Modes.DOC:
-            file = create_doc(partial_text, "Титова", "Сергея Сергеевича", "Руководитель отдела",
-                              "Отдел организационного развития")
-            partial_text += f'\n\n\nФайл: {file}'
             history[-1][1] = partial_text
         return history
 
@@ -529,30 +496,47 @@ class PrivateGptUi:
             yield history[:-1]
             self.semaphore.release()
             return
-        model, generator, files = self.get_message_generator(history, retrieved_docs, mode, top_k, top_p, temp, uid)
+        generator, files = self.get_message_generator(history, retrieved_docs, mode, top_k, top_p, temp, uid)
         partial_text = ""
         logger.info(f"Начинается генерация ответа [uid - {uid}]")
         f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Ответ: ")
-        if message := self.get_dates_in_question(history, model, generator, mode):
-            model, generator, files = self.get_message_generator(message, retrieved_docs, mode, top_k, top_p, temp, uid)
-        elif mode == Modes.DOC:
-            model, generator, files = self.get_message_generator(history, retrieved_docs, mode, top_k, top_p, temp, uid)
-        try:
-            token: dict
-            for token in generator:
-                for data in token["choices"]:
-                    letters = data["delta"].get("content", "")
-                    partial_text += letters
-                    f_logger.finfo(letters)
-                    history[-1][1] = partial_text
-                    yield history
-        except Exception as ex:
-            logger.error(f"Error - {ex}")
-            partial_text += "\nСлишком большой контекст. " \
-                            "Попробуйте уменьшить его или измените количество выдаваемого контекста в настройках"
-            history[-1][1] = partial_text
-            yield history
-            self.semaphore.release()
+        if mode == Modes.SQL:
+            # for i, row in enumerate(generator, start=1):
+            #     partial_text += f"{i}). {row}\n"
+            #     history[-1][1] = partial_text
+            #     yield history
+
+            max_columns = max(len(item) for item in generator)
+
+            # Создаем заголовок таблицы
+            header = " | ".join([f"**{i + 1}**" for i in range(max_columns)])
+            separator = "|------" * max_columns + "|"
+
+            # Собираем текст таблицы
+            partial_text += f"SQL-запрос - {files}\n\n"
+            partial_text += f"| {header} |\n{separator}\n"
+            for row_data in generator:
+                row = " | ".join([str(item) for item in row_data] + [""] * (max_columns - len(row_data)))
+                partial_text += f"| {row} |\n"
+                history[-1][1] = partial_text
+                yield history
+        else:
+            try:
+                token: dict
+                for token in generator:
+                    for data in token["choices"]:
+                        letters = data["delta"].get("content", "")
+                        partial_text += letters
+                        f_logger.finfo(letters)
+                        history[-1][1] = partial_text
+                        yield history
+            except Exception as ex:
+                logger.error(f"Error - {ex}")
+                partial_text += "\nСлишком большой контекст. Попробуйте уменьшить его " \
+                                "или измените количество выдаваемого контекста в настройках"
+                history[-1][1] = partial_text
+                yield history
+                self.semaphore.release()
         f_logger.finfo(f" - [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n\n")
         logger.info(f"Генерация ответа закончена [uid - {uid}]")
         yield self.get_list_files(history, mode, scores, files, partial_text)
@@ -565,8 +549,8 @@ class PrivateGptUi:
                 yield from self.bot(history, context, Modes.DB, top_k, top_p, temp, uid, scores)
             case Modes.LLM:
                 yield from self.bot(history, context, Modes.LLM, top_k, top_p, temp, uid, scores)
-            case Modes.DOC:
-                yield from self.bot(history, context, Modes.DOC, top_k, top_p, temp, uid, scores)
+            case Modes.SQL:
+                yield from self.bot(history, context, Modes.SQL, top_k, top_p, temp, uid, scores)
 
     def update_file(self, files: List[tempfile.TemporaryFile], chunk_size, chunk_overlap, uuid, uuid_old):
         self.delete_file(uuid_old)
@@ -731,7 +715,7 @@ class PrivateGptUi:
             with gr.Tab("Чат"):
                 with gr.Row():
                     mode = gr.Radio(
-                        MODES[:2],
+                        MODES,
                         value=MODES[0],
                         show_label=False
                     )

@@ -2,6 +2,7 @@ import os
 import re
 import magic
 import logging
+import sqlite3
 import subprocess
 from pathlib import Path
 from docx import Document as DocDocument
@@ -25,6 +26,7 @@ from typing import Optional, List
 from langchain.docstore.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import pandas as pd
+from private_gpt.paths import local_data_path
 
 logger = logging.getLogger(__name__)
 
@@ -204,6 +206,11 @@ class IngestionHelperLangchain:
         if ext in dict_formats:
             df = dict_formats[ext](file_name, dtype=str, keep_default_na=False)
             df = df.map(remove_time)
+
+            conn = sqlite3.connect(f'{local_data_path}/users.db')
+            df.to_sql('dangerous_goods', conn, if_exists='replace', index=False)
+            conn.close()
+
             result_str = "\n\n".join(
                 "\n".join(f"{header}: {row[header]}" for header in df.columns)
                 for _, row in df.iterrows()
