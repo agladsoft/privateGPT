@@ -414,9 +414,12 @@ class PrivateGptUi:
             with engine.connect() as conn:
                 result = conn.execute(text(response))
 
+                # Извлечение названий колонок
+                columns = result.keys()
+
                 # Извлечение результатов
                 rows = result.fetchall()
-                return rows, response
+            return rows, columns, response
         logger.info(f"Вопрос был полностью сформирован [uid - {uid}]")
         f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Вопрос: {history[-1][0]} - "
                        f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n")
@@ -459,7 +462,7 @@ class PrivateGptUi:
 
     @staticmethod
     def get_list_files(history, mode, scores, files, partial_text):
-        if files:
+        if files and isinstance(files, list):
             partial_text += SOURCES_SEPARATOR
             sources_text = [
                 f"{index}. {source}"
@@ -496,7 +499,7 @@ class PrivateGptUi:
             yield history[:-1]
             self.semaphore.release()
             return
-        generator, files = self.get_message_generator(history, retrieved_docs, mode, top_k, top_p, temp, uid)
+        generator, columns, files = self.get_message_generator(history, retrieved_docs, mode, top_k, top_p, temp, uid)
         partial_text = ""
         logger.info(f"Начинается генерация ответа [uid - {uid}]")
         f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Ответ: ")
@@ -509,11 +512,11 @@ class PrivateGptUi:
             max_columns = max(len(item) for item in generator)
 
             # Создаем заголовок таблицы
-            header = " | ".join([f"**{i + 1}**" for i in range(max_columns)])
+            header = " | ".join([f"**{column}**" for column in columns])
             separator = "|------" * max_columns + "|"
 
             # Собираем текст таблицы
-            partial_text += f"SQL-запрос - {files}\n\n"
+            partial_text += f"Запрос - {files}\n\n\n"
             partial_text += f"| {header} |\n{separator}\n"
             for row_data in generator:
                 row = " | ".join([str(item) for item in row_data] + [""] * (max_columns - len(row_data)))
