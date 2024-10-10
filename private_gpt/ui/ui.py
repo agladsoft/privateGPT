@@ -405,20 +405,24 @@ class PrivateGptUi:
             path_to_db = f"sqlite:///{local_data_path}/users.db"
             db = SQLDatabase.from_uri(path_to_db)
             chain = create_sql_query_chain(model, db)
-            response = chain.invoke({"question": last_user_message})
+            response = "SELECT * FROM dangerous_goods WHERE danger_class LIKE '9';"
 
             # Подключение к базе данных SQLite
             engine = create_engine(path_to_db)
 
             # Выполнение SQL-запроса
             with engine.connect() as conn:
-                result = conn.execute(text(response))
+                try:
+                    result = conn.execute(text(response))
+                    # Извлечение названий колонок
+                    columns = list(result.keys())
 
-                # Извлечение названий колонок
-                columns = result.keys()
-
-                # Извлечение результатов
-                rows = result.fetchall()
+                    # Извлечение результатов
+                    rows = result.fetchall()
+                except Exception as ex:
+                    logger.error(ex)
+                    rows = []
+                    columns = []
             return rows, columns, response
         logger.info(f"Вопрос был полностью сформирован [uid - {uid}]")
         f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Вопрос: {history[-1][0]} - "
@@ -504,25 +508,20 @@ class PrivateGptUi:
         logger.info(f"Начинается генерация ответа [uid - {uid}]")
         f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Ответ: ")
         if mode == Modes.SQL:
-            # for i, row in enumerate(generator, start=1):
-            #     partial_text += f"{i}). {row}\n"
-            #     history[-1][1] = partial_text
-            #     yield history
-
             max_columns = max(len(item) for item in generator) if generator else 0
 
-            # Создаем заголовок таблицы
-            header = " | ".join([f"**{column}**" for column in columns])
-            separator = "|------" * max_columns + "|"
+            header = " | ".join([f"**{column}**" for column in ['id'] + columns])  # Добавляем 'id' в начало
+            separator = "|------" * (max_columns + 1) + "|"  # Увеличиваем количество столбцов на 1 для 'id'
 
-            # Собираем текст таблицы
             partial_text += f"Запрос - {files}\n\n\n"
             partial_text += f"| {header} |\n{separator}\n"
-            for row_data in generator:
-                row = " | ".join([str(item) for item in row_data] + [""] * (max_columns - len(row_data)))
+
+            for i, row_data in enumerate(generator, start=1):
+                row = f"{i} | " + " | ".join([str(item) for item in row_data] + [""] * (max_columns - len(row_data)))
                 partial_text += f"| {row} |\n"
                 history[-1][1] = partial_text
                 yield history
+
             history[-1][1] = partial_text
             yield history
         else:

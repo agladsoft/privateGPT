@@ -205,6 +205,7 @@ class IngestionHelperLangchain:
         }
         if ext in dict_formats:
             df = dict_formats[ext](file_name, dtype=str, keep_default_na=False)
+            df = df.map(lambda x: x.lower() if isinstance(x, str) else x)
             df = df.map(remove_time)
 
             conn = sqlite3.connect(f'{local_data_path}/users.db')
