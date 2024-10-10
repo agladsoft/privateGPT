@@ -405,7 +405,7 @@ class PrivateGptUi:
             path_to_db = f"sqlite:///{local_data_path}/users.db"
             db = SQLDatabase.from_uri(path_to_db)
             chain = create_sql_query_chain(model, db)
-            response = "SELECT * FROM dangerous_goods WHERE danger_class LIKE '9';"
+            response = chain.invoke({"question": last_user_message})
 
             # Подключение к базе данных SQLite
             engine = create_engine(path_to_db)
