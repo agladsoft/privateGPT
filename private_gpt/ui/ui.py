@@ -509,7 +509,7 @@ class PrivateGptUi:
             #     history[-1][1] = partial_text
             #     yield history
 
-            max_columns = max(len(item) for item in generator)
+            max_columns = max(len(item) for item in generator) if generator else 0
 
             # Создаем заголовок таблицы
             header = " | ".join([f"**{column}**" for column in columns])
@@ -523,6 +523,8 @@ class PrivateGptUi:
                 partial_text += f"| {row} |\n"
                 history[-1][1] = partial_text
                 yield history
+            history[-1][1] = partial_text
+            yield history
         else:
             try:
                 token: dict
