@@ -6,6 +6,7 @@ import sqlite3
 import subprocess
 from pathlib import Path
 from docx import Document as DocDocument
+from deep_translator import GoogleTranslator
 from llama_index.readers import JSONReader, StringIterableReader
 from llama_index.readers.file.base import DEFAULT_FILE_READER_CLS
 
@@ -185,6 +186,13 @@ class IngestionHelperLangchain:
                     return ext_
             return ""
 
+        def clean_column_name(translator_, col_name):
+            translated_col = translator_.translate(col_name)
+
+            # Приведение к нижнему регистру, удаление скобок и замена проблемных символов на подчеркивания
+            cleaned_col = re.sub(r'[^\w\s]', '', translated_col).replace(' ', '_').lower()
+            return cleaned_col
+
         logger.debug("Transforming file_name=%s into documents", file_name)
         file_name_without_ext, ext = os.path.splitext(file_name)
         if ext == "" or ext not in MIME_TYPE:
@@ -204,12 +212,19 @@ class IngestionHelperLangchain:
             ".csv": pd.read_csv
         }
         if ext in dict_formats:
+            translator = GoogleTranslator(source='ru', target='en')
             df = dict_formats[ext](file_name, dtype=str, keep_default_na=False)
+            df.columns = [clean_column_name(translator, col) for col in df.columns]
             df = df.map(lambda x: x.lower() if isinstance(x, str) else x)
             df = df.map(remove_time)
 
             conn = sqlite3.connect(f'{local_data_path}/users.db')
-            df.to_sql('dangerous_goods', conn, if_exists='replace', index=False)
+            df.to_sql(
+                clean_column_name(translator, os.path.basename(file_name).replace(ext, "")),
+                conn,
+                if_exists='replace',
+                index=False
+            )
             conn.close()
 
             result_str = "\n\n".join(

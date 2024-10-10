@@ -5,8 +5,6 @@ import socket
 import logging
 import os.path
 import datetime
-from abc import ABC
-
 import chromadb
 import requests
 import tempfile
@@ -17,6 +15,7 @@ import qrcode.image.svg
 from fastapi import FastAPI
 from pydantic import BaseModel
 from gradio_modal import Modal
+from operator import itemgetter
 from tinydb import TinyDB, where
 from private_gpt.ui.images import *
 from typing import Any, List, Literal
@@ -27,16 +26,19 @@ from private_gpt.paths import models_path
 from private_gpt.di import global_injector
 from sqlalchemy import create_engine, text
 from private_gpt.paths import local_data_path
-from llama_cpp import Llama
 from langchain_community.llms import LlamaCpp
 from private_gpt.paths import models_cache_path
 from gradio_client.documentation import document
+from langchain_core.prompts import PromptTemplate
 from huggingface_hub.file_download import http_get
 from private_gpt.settings.settings import settings
 from langchain.chains import create_sql_query_chain
 from langchain_community.vectorstores import Chroma
 from private_gpt.ui.logging_custom import FileLogger
 from langchain_community.utilities import SQLDatabase
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
+from langchain_community.tools import QuerySQLDataBaseTool
 from private_gpt.server.chat.chat_service import ChatService
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from private_gpt.server.ingest.ingest_service import IngestService
@@ -400,30 +402,9 @@ class PrivateGptUi:
             retrieved_docs = re.sub(fr'<a\s+[^>]*>{file}</a>', file, retrieved_docs)
         if retrieved_docs and mode == Modes.DB:
             last_user_message = f"Контекст: {retrieved_docs}\n\nИспользуя только контекст, ответь на вопрос: " \
-                                f"{last_user_message}"
+                                    f"{last_user_message}"
         elif mode == Modes.SQL:
-            path_to_db = f"sqlite:///{local_data_path}/users.db"
-            db = SQLDatabase.from_uri(path_to_db)
-            chain = create_sql_query_chain(model, db)
-            response = chain.invoke({"question": last_user_message})
-
-            # Подключение к базе данных SQLite
-            engine = create_engine(path_to_db)
-
-            # Выполнение SQL-запроса
-            with engine.connect() as conn:
-                try:
-                    result = conn.execute(text(response))
-                    # Извлечение названий колонок
-                    columns = list(result.keys())
-
-                    # Извлечение результатов
-                    rows = result.fetchall()
-                except Exception as ex:
-                    logger.error(ex)
-                    rows = []
-                    columns = []
-            return rows, columns, response
+            return self.generate_sql_query(model, last_user_message)
         logger.info(f"Вопрос был полностью сформирован [uid - {uid}]")
         f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Вопрос: {history[-1][0]} - "
                        f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n")
@@ -449,6 +430,67 @@ class PrivateGptUi:
             top_p=top_p
         )
         return generator, files
+
+    @staticmethod
+    def generate_sql_query(model, last_user_message):
+        path_to_db = f"sqlite:///{local_data_path}/users.db"
+        db = SQLDatabase.from_uri(path_to_db)
+
+        # template = '''Получив входной вопрос, сначала создайте синтаксически корректный запрос на
+        #     {dialect} для выполнения, затем просмотрите результаты запроса и верните ответ.
+        #     Используйте следующий формат:
+        #
+        #     Question: "Вопрос здесь"
+        #     SQLQuery: "Выполняемый SQL-запрос"
+        #     SQLResult: "Результат выполнения SqlQuery"
+        #     Answer: "Окончательный ответ здесь"
+        #
+        #     Используйте только следующие таблицы:
+        #
+        #     {table_info}.
+        #
+        #     Question: {input}'''
+        prompt = PromptTemplate.from_template(
+            """Учитывая следующий вопрос пользователя, соответствующий SQL-запрос и результат SQL, ответьте на вопрос пользователя.
+
+        Question: {question}
+        SQL Query: {query}
+        SQL Result: {result}
+        Answer: """
+        )
+
+        # chain = create_sql_query_chain(model, db, prompt)
+        # response = chain.invoke({"question": last_user_message})
+
+        execute_query = QuerySQLDataBaseTool(db=db)
+        write_query = create_sql_query_chain(model, db)
+        chain = (
+                RunnablePassthrough.assign(query=write_query).assign(
+                    result=itemgetter("query") | execute_query
+                )
+                | prompt
+                | model
+                | StrOutputParser()
+        )
+        response = chain.invoke({"question": last_user_message})
+
+        # Подключение к базе данных SQLite
+        engine = create_engine(path_to_db)
+
+        # Выполнение SQL-запроса
+        with engine.connect() as conn:
+            try:
+                result = conn.execute(text(response))
+                # Извлечение названий колонок
+                columns = list(result.keys())
+
+                # Извлечение результатов
+                rows = result.fetchall()
+            except Exception as ex:
+                logger.error(ex)
+                rows = []
+                columns = []
+        return rows, columns, response
 
     @staticmethod
     def calculate_end_date(history):
@@ -513,7 +555,7 @@ class PrivateGptUi:
             header = " | ".join([f"**{column}**" for column in ['id'] + columns])  # Добавляем 'id' в начало
             separator = "|------" * (max_columns + 1) + "|"  # Увеличиваем количество столбцов на 1 для 'id'
 
-            partial_text += f"Запрос - {files}\n\n\n"
+            partial_text += f"Запрос - ```{files}```\n\n\n"
             partial_text += f"| {header} |\n{separator}\n"
 
             for i, row_data in enumerate(generator, start=1):
