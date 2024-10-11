@@ -25,6 +25,7 @@ from private_gpt.paths import models_path
 from private_gpt.di import global_injector
 from sqlalchemy import create_engine, text
 from private_gpt.paths import local_data_path
+from llama_cpp import Llama
 from langchain_community.llms import LlamaCpp
 from private_gpt.paths import models_cache_path
 from gradio_client.documentation import document
@@ -135,32 +136,22 @@ function() {
 }
 """
 
-TEMPLATE = """
-Вы эксперт по SQLite. Получив входной вопрос, сначала создайте синтаксически корректный запрос SQLite 
-для выполнения, затем просмотрите результаты запроса и верните ответ на входной вопрос.
+TEMPLATE = '''Получив входной вопрос, сначала создайте синтаксически корректный запрос на {dialect} для выполнения, 
+затем просмотрите результаты запроса и верните ответ. 
 Если пользователь не укажет в вопросе конкретное количество примеров для получения, 
-запросите не более {top_k} результатов, используя предложение LIMIT в соответствии с SQLite. 
-Вы можете упорядочить результаты, чтобы они возвращали наиболее информативные данные в базе данных.
-Никогда не запрашивайте все столбцы таблицы. Вы должны запрашивать только те столбцы, 
-которые необходимы для ответа на вопрос. Заключите название каждого столбца в двойные кавычки (""), 
-чтобы обозначить их как идентификаторы с разделителями.
-Обратите внимание на то, что используйте только те имена столбцов, 
-которые вы можете увидеть в таблицах ниже. Будьте осторожны, чтобы не запрашивать несуществующие столбцы. 
-Также обратите внимание на то, какой столбец находится в какой таблице.
-Обратите внимание на функцию use date("now"), чтобы получить текущую дату, если в вопросе указано "today".
-
+запросите не более {top_k} результатов, используя предложение LIMIT в соответствии с SQLite.
 Используйте следующий формат:
 
-Question: Вопрос здесь
-SqlQuery: выполняемый SQL-запрос
-SQLResult: Результат выполнения SqlQuery
-Answer: Окончательный ответ здесь
+Question: "Вопрос здесь"
+SQLQuery: "Выполняемый SQL-запрос"
+SQLResult: "Результат выполнения SqlQuery"
+Answer: "Окончательный ответ здесь"
 
 Используйте только следующие таблицы:
-{table_info}
 
-Question: {input}
-"""
+{table_info}.
+
+Question: {input}'''
 
 UI_TAB_TITLE = "Ruscon AI"
 
@@ -456,7 +447,7 @@ class PrivateGptUi:
             top_k=top_k,
             top_p=top_p
         )
-        return generator, files
+        return generator, [], files
 
     @staticmethod
     def generate_sql_query(model, last_user_message):
