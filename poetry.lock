@@ -876,6 +876,21 @@ marshmallow = ">=3.18.0,<4.0.0"
 typing-inspect = ">=0.4.0,<1"
 
 [[package]]
+name = "deep-translator"
+version = "1.9.0"
+description = "A flexible free and unlimited python tool to translate between different languages in a simple way using multiple translators"
+optional = false
+python-versions = ">=3.7,<4.0"
+files = [
+    {file = "deep-translator-1.9.0.tar.gz", hash = "sha256:c0fa55568a5bbeec3bc2b799e1fd072f3f7f349832618205b6dc38ae1242d71a"},
+    {file = "deep_translator-1.9.0-py3-none-any.whl", hash = "sha256:563484f4462098e4ecc55aa2099b78bca0d619ecc6272049856ccf19d59eced5"},
+]
+
+[package.dependencies]
+beautifulsoup4 = ">=4.9.1,<5.0.0"
+requests = ">=2.23.0,<3.0.0"
+
+[[package]]
 name = "deprecated"
 version = "1.2.14"
 description = "Python @deprecated decorator to deprecate old python classes, functions or methods."
@@ -6275,4 +6290,4 @@ chroma = ["chromadb"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<3.12"
-content-hash = "eff805607bc65c7cbd670fb9544effb7d487088ffefa57f63218cd85d711f31c"
+content-hash = "f6e0f8ea533d7160e42b4ef31f6854ebb9465a81d50f47b211e0cdeb4815f812"

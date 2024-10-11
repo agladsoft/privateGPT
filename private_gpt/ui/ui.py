@@ -15,7 +15,6 @@ import qrcode.image.svg
 from fastapi import FastAPI
 from pydantic import BaseModel
 from gradio_modal import Modal
-from operator import itemgetter
 from tinydb import TinyDB, where
 from private_gpt.ui.images import *
 from typing import Any, List, Literal
@@ -33,12 +32,10 @@ from langchain_core.prompts import PromptTemplate
 from huggingface_hub.file_download import http_get
 from private_gpt.settings.settings import settings
 from langchain.chains import create_sql_query_chain
+from langchain.chains.sql_database.query import create_sql_query_chain
 from langchain_community.vectorstores import Chroma
 from private_gpt.ui.logging_custom import FileLogger
 from langchain_community.utilities import SQLDatabase
-from langchain_core.runnables import RunnablePassthrough
-from langchain_core.output_parsers import StrOutputParser
-from langchain_community.tools import QuerySQLDataBaseTool
 from private_gpt.server.chat.chat_service import ChatService
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from private_gpt.server.ingest.ingest_service import IngestService
@@ -136,6 +133,33 @@ function() {
     const access_token = getStorage('access_token')
     return [access_token];
 }
+"""
+
+TEMPLATE = """
+Вы эксперт по SQLite. Получив входной вопрос, сначала создайте синтаксически корректный запрос SQLite 
+для выполнения, затем просмотрите результаты запроса и верните ответ на входной вопрос.
+Если пользователь не укажет в вопросе конкретное количество примеров для получения, 
+запросите не более {top_k} результатов, используя предложение LIMIT в соответствии с SQLite. 
+Вы можете упорядочить результаты, чтобы они возвращали наиболее информативные данные в базе данных.
+Никогда не запрашивайте все столбцы таблицы. Вы должны запрашивать только те столбцы, 
+которые необходимы для ответа на вопрос. Заключите название каждого столбца в двойные кавычки (""), 
+чтобы обозначить их как идентификаторы с разделителями.
+Обратите внимание на то, что используйте только те имена столбцов, 
+которые вы можете увидеть в таблицах ниже. Будьте осторожны, чтобы не запрашивать несуществующие столбцы. 
+Также обратите внимание на то, какой столбец находится в какой таблице.
+Обратите внимание на функцию use date("now"), чтобы получить текущую дату, если в вопросе указано "today".
+
+Используйте следующий формат:
+
+Question: Вопрос здесь
+SqlQuery: выполняемый SQL-запрос
+SQLResult: Результат выполнения SqlQuery
+Answer: Окончательный ответ здесь
+
+Используйте только следующие таблицы:
+{table_info}
+
+Question: {input}
 """
 
 UI_TAB_TITLE = "Ruscon AI"
@@ -286,7 +310,10 @@ class PrivateGptUi:
             n_gpu_layers=43,
             model_path=path,
             n_ctx=settings().llm.context_window,
-            n_parts=1
+            n_parts=1,
+            temperature=0.1,
+            top_p=0.9,
+            top_k=80
         )
 
     @staticmethod
@@ -436,42 +463,9 @@ class PrivateGptUi:
         path_to_db = f"sqlite:///{local_data_path}/users.db"
         db = SQLDatabase.from_uri(path_to_db)
 
-        # template = '''Получив входной вопрос, сначала создайте синтаксически корректный запрос на
-        #     {dialect} для выполнения, затем просмотрите результаты запроса и верните ответ.
-        #     Используйте следующий формат:
-        #
-        #     Question: "Вопрос здесь"
-        #     SQLQuery: "Выполняемый SQL-запрос"
-        #     SQLResult: "Результат выполнения SqlQuery"
-        #     Answer: "Окончательный ответ здесь"
-        #
-        #     Используйте только следующие таблицы:
-        #
-        #     {table_info}.
-        #
-        #     Question: {input}'''
-        prompt = PromptTemplate.from_template(
-            """Учитывая следующий вопрос пользователя, соответствующий SQL-запрос и результат SQL, ответьте на вопрос пользователя.
+        prompt = PromptTemplate.from_template(TEMPLATE)
 
-        Question: {question}
-        SQL Query: {query}
-        SQL Result: {result}
-        Answer: """
-        )
-
-        # chain = create_sql_query_chain(model, db, prompt)
-        # response = chain.invoke({"question": last_user_message})
-
-        execute_query = QuerySQLDataBaseTool(db=db)
-        write_query = create_sql_query_chain(model, db)
-        chain = (
-                RunnablePassthrough.assign(query=write_query).assign(
-                    result=itemgetter("query") | execute_query
-                )
-                | prompt
-                | model
-                | StrOutputParser()
-        )
+        chain = create_sql_query_chain(model, db, prompt)
         response = chain.invoke({"question": last_user_message})
 
         # Подключение к базе данных SQLite
