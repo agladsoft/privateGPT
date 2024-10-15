@@ -1,4 +1,5 @@
 """This file should be imported only and only if you want to run the UI locally."""
+import json
 import re
 import uuid
 import socket
@@ -12,6 +13,7 @@ import threading
 import pandas as pd
 import gradio as gr
 import qrcode.image.svg
+from llama_cpp import Llama
 from fastapi import FastAPI
 from pydantic import BaseModel
 from gradio_modal import Modal
@@ -24,22 +26,21 @@ from gradio.queueing import Queue, Event
 from private_gpt.paths import models_path
 from private_gpt.di import global_injector
 from sqlalchemy import create_engine, text
+from private_gpt.templates.weather import *
 from private_gpt.paths import local_data_path
-from llama_cpp import Llama
-from langchain_community.llms import LlamaCpp
 from private_gpt.paths import models_cache_path
 from gradio_client.documentation import document
 from langchain_core.prompts import PromptTemplate
 from huggingface_hub.file_download import http_get
 from private_gpt.settings.settings import settings
 from langchain.chains import create_sql_query_chain
-from langchain.chains.sql_database.query import create_sql_query_chain
 from langchain_community.vectorstores import Chroma
 from private_gpt.ui.logging_custom import FileLogger
 from langchain_community.utilities import SQLDatabase
 from private_gpt.server.chat.chat_service import ChatService
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from private_gpt.server.ingest.ingest_service import IngestService
+from langchain.chains.sql_database.query import create_sql_query_chain
 from private_gpt.server.chunks.chunks_service import Chunk, ChunksService
 
 
@@ -297,14 +298,12 @@ class PrivateGptUi:
                     f
                 )
 
-        return LlamaCpp(
+        return Llama(
             n_gpu_layers=43,
             model_path=path,
             n_ctx=settings().llm.context_window,
             n_parts=1,
-            temperature=0.1,
-            top_p=0.9,
-            top_k=80
+            # chat_format="chatml-function-calling"
         )
 
     @staticmethod
@@ -431,23 +430,56 @@ class PrivateGptUi:
             {"role": "user", "content": user_message}
             for user_message, _ in history[-4:-1]
         ]
-        generator = model.create_chat_completion(
-            messages=[
-                {
-                    "role": "system", "content": self._system_prompt
-                },
-                *history_user,
-                {
-                    "role": "user", "content": last_user_message
-                },
+        messages = [
+            {
+                "role": "system", "content": self._system_prompt
+            },
+            *history_user,
+            {
+                "role": "user", "content": last_user_message
+            },
 
-            ],
+        ]
+        response = model.create_chat_completion(
+            messages=messages,
+            # stream=True,
+            temperature=temp,
+            top_k=top_k,
+            top_p=top_p,
+            tools=[weather],
+            tool_choice={"type": "function", "function": {"name": "get_current_weather"}}
+        )
+
+        if response_message := response["choices"][0]["message"]["tool_calls"]:
+            # Step 3: call the function
+            # Note: the JSON response may not always be valid; be sure to handle errors
+            available_functions = {
+                "get_current_weather": get_current_weather,
+            }  # only one function in this example, but you can have multiple
+            for tool_call in response_message:
+                function_name = tool_call["function"]["name"]
+                function_to_call = available_functions[function_name]
+                function_args = json.loads(tool_call["function"]["arguments"])
+                function_response = function_to_call(
+                    latitude=function_args.get("latitude"),
+                    longitude=function_args.get("longitude"),
+                )
+                messages.append(
+                    {
+                        "tool_call_id": tool_call["id"],
+                        "role": "tool",
+                        "content": function_response,
+                    }
+                )  # extend conversation with function response
+        response = model.create_chat_completion(
+            messages=messages,
             stream=True,
             temperature=temp,
             top_k=top_k,
             top_p=top_p
         )
-        return generator, [], files
+
+        return response, [], files
 
     @staticmethod
     def generate_sql_query(model, last_user_message):
@@ -556,7 +588,7 @@ class PrivateGptUi:
                 token: dict
                 for token in generator:
                     for data in token["choices"]:
-                        letters = data["delta"].get("content", "")
+                        letters = data["delta"].get("content", "") or ""
                         partial_text += letters
                         f_logger.finfo(letters)
                         history[-1][1] = partial_text
