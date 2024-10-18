@@ -7,7 +7,6 @@ import logging
 import os.path
 import datetime
 import chromadb
-import requests
 import tempfile
 import threading
 import pandas as pd
@@ -25,22 +24,17 @@ from gradio.blocks import BlockFunction
 from gradio.queueing import Queue, Event
 from private_gpt.paths import models_path
 from private_gpt.di import global_injector
-from sqlalchemy import create_engine, text
-from private_gpt.templates.weather import *
+from private_gpt.functions.functions import *
 from private_gpt.paths import local_data_path
 from private_gpt.paths import models_cache_path
 from gradio_client.documentation import document
-from langchain_core.prompts import PromptTemplate
 from huggingface_hub.file_download import http_get
 from private_gpt.settings.settings import settings
-from langchain.chains import create_sql_query_chain
 from langchain_community.vectorstores import Chroma
 from private_gpt.ui.logging_custom import FileLogger
-from langchain_community.utilities import SQLDatabase
 from private_gpt.server.chat.chat_service import ChatService
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from private_gpt.server.ingest.ingest_service import IngestService
-from langchain.chains.sql_database.query import create_sql_query_chain
 from private_gpt.server.chunks.chunks_service import Chunk, ChunksService
 
 
@@ -411,121 +405,58 @@ class PrivateGptUi:
         self.semaphore.release()
 
     def get_message_generator(self, history, retrieved_docs, mode, top_k, top_p, temp, uid):
-        model = self._chat_service.llm
         last_user_message = history[-1][0]
-        pattern = r'<a\s+[^>]*>(.*?)</a>'
-        files = re.findall(pattern, retrieved_docs)
+        files = re.findall(r'<a\s+[^>]*>(.*?)</a>', retrieved_docs)
         for file in files:
             retrieved_docs = re.sub(fr'<a\s+[^>]*>{file}</a>', file, retrieved_docs)
         if retrieved_docs and mode == Modes.DB:
             last_user_message = f"Контекст: {retrieved_docs}\n\nИспользуя только контекст, ответь на вопрос: " \
-                                    f"{last_user_message}"
-        elif mode == Modes.SQL:
-            return self.generate_sql_query(model, last_user_message)
+                                        f"{last_user_message}"
         logger.info(f"Вопрос был полностью сформирован [uid - {uid}]")
-        f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Вопрос: {history[-1][0]} - "
-                       f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n")
-
-        history_user = [
-            {"role": "user", "content": user_message}
-            for user_message, _ in history[-4:-1]
-        ]
+        history_user = [{"role": "user", "content": user_message} for user_message, _ in history[-4:-1]]
         messages = [
-            {
-                "role": "system", "content": self._system_prompt
-            },
+            {"role": "system", "content": self._system_prompt},
             *history_user,
-            {
-                "role": "user", "content": last_user_message
-            },
-
+            {"role": "user", "content": last_user_message},
         ]
-        response = model.create_chat_completion(
+        response = self._chat_service.llm.create_chat_completion(
             messages=messages,
-            # stream=True,
             temperature=temp,
             top_k=top_k,
             top_p=top_p,
-            tools=[weather],
-            tool_choice={"type": "function", "function": {"name": "get_current_weather"}}
+            tools=tools,
+            tool_choice={"type": "function", "function": {"name": "calculate"}}
         )
-
-        if response_message := response["choices"][0]["message"]["tool_calls"]:
-            # Step 3: call the function
-            # Note: the JSON response may not always be valid; be sure to handle errors
-            available_functions = {
-                "get_current_weather": get_current_weather,
-            }  # only one function in this example, but you can have multiple
-            for tool_call in response_message:
-                function_name = tool_call["function"]["name"]
-                function_to_call = available_functions[function_name]
-                function_args = json.loads(tool_call["function"]["arguments"])
-                function_response = function_to_call(
-                    latitude=function_args.get("latitude"),
-                    longitude=function_args.get("longitude"),
-                )
-                logger.info(function_response)
-                messages.append(
-                    {
-                        "tool_call_id": tool_call["id"],
-                        "role": "tool",
-                        "content": function_response,
-                    }
-                )  # extend conversation with function response
-        response = model.create_chat_completion(
+        if not (response_message := response["choices"][0]["message"].get("tool_calls")):
+            return response, files
+        available_functions = {
+            "get_current_weather": get_current_weather,
+            "calculate": calculate
+        }
+        for tool_call in response_message:
+            function_name = tool_call["function"]["name"]
+            function_to_call = available_functions[function_name]
+            function_args = json.loads(tool_call["function"]["arguments"])
+            function_response = function_to_call(**function_args)
+            logger.info(function_response)
+            messages.append(
+                {
+                    "tool_call_id": tool_call["id"],
+                    "role": "tool",
+                    "content": function_response,
+                }
+            )
+        response = self._chat_service.llm.create_chat_completion(
             messages=messages,
             stream=True,
             temperature=temp,
             top_k=top_k,
             top_p=top_p
         )
-
-        return response, [], files
-
-    @staticmethod
-    def generate_sql_query(model, last_user_message):
-        path_to_db = f"sqlite:///{local_data_path}/users.db"
-        db = SQLDatabase.from_uri(path_to_db)
-
-        prompt = PromptTemplate.from_template(TEMPLATE)
-
-        chain = create_sql_query_chain(model, db, prompt)
-        response = chain.invoke({"question": last_user_message})
-
-        # Подключение к базе данных SQLite
-        engine = create_engine(path_to_db)
-
-        # Выполнение SQL-запроса
-        with engine.connect() as conn:
-            try:
-                result = conn.execute(text(response))
-                # Извлечение названий колонок
-                columns = list(result.keys())
-
-                # Извлечение результатов
-                rows = result.fetchall()
-            except Exception as ex:
-                logger.error(ex)
-                rows = []
-                columns = []
-        return rows, columns, response
+        return response, files
 
     @staticmethod
-    def calculate_end_date(history):
-        long_days = re.findall(r"\d{1,4} д", history[-1][0])
-        list_dates = []
-        for day in long_days:
-            day = int(day.replace(" д", ""))
-            start_dates = re.findall(r"\d{1,2}[.]\d{1,2}[.]\d{2,4}", history[-1][1])
-            for date in start_dates:
-                list_dates.append(date)
-                end_date = datetime.datetime.strptime(date, '%d.%m.%Y') + datetime.timedelta(days=day)
-                end_date = end_date.strftime('%d.%m.%Y')
-                list_dates.append(end_date)
-                return [[f"Начало отпуска - {list_dates[0]}. Конец отпуска - {list_dates[1]}", None]]
-
-    @staticmethod
-    def get_list_files(history, mode, scores, files, partial_text):
+    def get_list_files(history, scores, files, partial_text):
         if files and isinstance(files, list):
             partial_text += SOURCES_SEPARATOR
             sources_text = [
@@ -563,47 +494,30 @@ class PrivateGptUi:
             yield history[:-1]
             self.semaphore.release()
             return
-        generator, columns, files = self.get_message_generator(history, retrieved_docs, mode, top_k, top_p, temp, uid)
-        partial_text = ""
+        generator, files = self.get_message_generator(history, retrieved_docs, mode, top_k, top_p, temp, uid)
         logger.info(f"Начинается генерация ответа [uid - {uid}]")
-        f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Ответ: ")
-        if mode == Modes.SQL:
-            max_columns = max(len(item) for item in generator) if generator else 0
-
-            header = " | ".join([f"**{column}**" for column in ['id'] + columns])  # Добавляем 'id' в начало
-            separator = "|------" * (max_columns + 1) + "|"  # Увеличиваем количество столбцов на 1 для 'id'
-
-            partial_text += f"Запрос - ```{files}```\n\n\n"
-            partial_text += f"| {header} |\n{separator}\n"
-
-            for i, row_data in enumerate(generator, start=1):
-                row = f"{i} | " + " | ".join([str(item) for item in row_data] + [""] * (max_columns - len(row_data)))
-                partial_text += f"| {row} |\n"
-                history[-1][1] = partial_text
+        partial_text = ""
+        try:
+            if isinstance(generator, dict):
+                history[-1][1] = generator["choices"][0]["message"]["content"]
                 yield history
-
-            history[-1][1] = partial_text
-            yield history
-        else:
-            try:
+            else:
                 token: dict
                 for token in generator:
                     for data in token["choices"]:
                         letters = data["delta"].get("content", "") or ""
                         partial_text += letters
-                        f_logger.finfo(letters)
                         history[-1][1] = partial_text
                         yield history
-            except Exception as ex:
-                logger.error(f"Error - {ex}")
-                partial_text += "\nСлишком большой контекст. Попробуйте уменьшить его " \
-                                "или измените количество выдаваемого контекста в настройках"
-                history[-1][1] = partial_text
-                yield history
-                self.semaphore.release()
-        f_logger.finfo(f" - [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n\n")
+        except Exception as ex:
+            logger.error(f"Error - {ex}")
+            partial_text += "\nСлишком большой контекст. Попробуйте уменьшить его " \
+                            "или измените количество выдаваемого контекста в настройках"
+            history[-1][1] = partial_text
+            yield history
+            self.semaphore.release()
         logger.info(f"Генерация ответа закончена [uid - {uid}]")
-        yield self.get_list_files(history, mode, scores, files, partial_text)
+        yield self.get_list_files(history, scores, files, partial_text)
         self._queue -= 1
         self.semaphore.release()
 
