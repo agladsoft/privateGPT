@@ -464,6 +464,7 @@ class PrivateGptUi:
                     latitude=function_args.get("latitude"),
                     longitude=function_args.get("longitude"),
                 )
+                logger.info(function_response)
                 messages.append(
                     {
                         "tool_call_id": tool_call["id"],
