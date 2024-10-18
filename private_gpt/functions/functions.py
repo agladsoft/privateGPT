@@ -57,8 +57,8 @@ tools = [
 def get_current_weather(latitude, longitude):
     # Используем OpenWeatherMap API или другой API для получения текущей погоды
     api_key = "59bf8b2f47201a898a0612f31da81190"
-    url = f"http://api.openweathermap.org/data/2.5/weather?lat={latitude}&lon={longitude}&appid={api_key}&units=metric"
-
+    url = f"http://api.openweathermap.org/data/2.5/weather?lat={latitude}&lon={longitude}&appid={api_key}" \
+          f"&units=metric&lang=ru"
     response = requests.get(url, timeout=60)
     if response.status_code != 200:
         return {"error": "Unable to fetch weather data"}

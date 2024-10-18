@@ -425,7 +425,7 @@ class PrivateGptUi:
             top_k=top_k,
             top_p=top_p,
             tools=tools,
-            tool_choice={"type": "function", "function": {"name": "calculate"}}
+            tool_choice={"type": "function", "function": {"name": "get_current_weather"}}
         )
         if not (response_message := response["choices"][0]["message"].get("tool_calls")):
             return response, files
