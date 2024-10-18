@@ -152,7 +152,7 @@ UI_TAB_TITLE = "Ruscon AI"
 
 SOURCES_SEPARATOR = "\n\n Документы: \n"
 
-MODES = ["ВНД", "Свободное общение", "SQL"]
+MODES = ["ВНД", "Свободное общение"]
 MAX_NEW_TOKENS: int = 1500
 LINEBREAK_TOKEN: int = 13
 SYSTEM_TOKEN: int = 1788
@@ -171,7 +171,6 @@ ROLE_TOKENS: dict = {
 class Modes:
     DB = MODES[0]
     LLM = MODES[1]
-    SQL = MODES[2]
 
 
 class Blocks(gr.Blocks):
@@ -527,8 +526,6 @@ class PrivateGptUi:
                 yield from self.bot(history, context, Modes.DB, top_k, top_p, temp, uid, scores)
             case Modes.LLM:
                 yield from self.bot(history, context, Modes.LLM, top_k, top_p, temp, uid, scores)
-            case Modes.SQL:
-                yield from self.bot(history, context, Modes.SQL, top_k, top_p, temp, uid, scores)
 
     def update_file(self, files: List[tempfile.TemporaryFile], chunk_size, chunk_overlap, uuid, uuid_old):
         self.delete_file(uuid_old)
