@@ -1,5 +1,6 @@
 import requests
-
+from sqlalchemy import create_engine, text
+from private_gpt.paths import local_data_path
 
 # Функция для интеграции в LLM через tools
 tools = [
@@ -50,12 +51,56 @@ tools = [
                 "required": ["operation", "number_one", "number_two"],
             },
         },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_sql_query",
+            "description": "Generates an SQL query to retrieve data from a table with optional filtering, sorting "
+                           "and limit",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "table_name": {
+                        "type": "string",
+                        "description": "The name of the table from which to retrieve the data"
+                    },
+                    "columns": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "The list of columns to be selected from the table. If not specified, "
+                                       "all columns (*) will be selected"
+                    },
+                    "conditions": {
+                        "type": "string",
+                        "description": "Optional conditions to filter the data (e.g., 'age > 30')"
+                    },
+                    "order_by": {
+                        "type": "string",
+                        "description": "Optional ordering for the data (e.g., 'age DESC')"
+                    },
+                    "limit": {
+                        "type": "number",
+                        "description": "Optional limit on the number of rows returned"
+                    }
+                },
+                "required": ["table_name"]
+            }
+        }
     }
+
 ]
 
 
 def get_current_weather(latitude, longitude):
-    # Используем OpenWeatherMap API или другой API для получения текущей погоды
+    """
+    Используем OpenWeatherMap API или другой API для получения текущей погоды
+    :param latitude:
+    :param longitude:
+    :return:
+    """
     api_key = "59bf8b2f47201a898a0612f31da81190"
     url = f"http://api.openweathermap.org/data/2.5/weather?lat={latitude}&lon={longitude}&appid={api_key}" \
           f"&units=metric&lang=ru"
@@ -68,6 +113,13 @@ def get_current_weather(latitude, longitude):
 
 
 def calculate(operation, number_one, number_two):
+    """
+    Calculate digits.
+    :param operation:
+    :param number_one:
+    :param number_two:
+    :return:
+    """
     if operation == "add":
         return f"Ответ является {number_one + number_two}"
     elif operation == "subtract":
@@ -78,3 +130,75 @@ def calculate(operation, number_one, number_two):
         return f"Ответ является {number_one / number_two}"
     else:
         raise ValueError(f"Unknown operation {operation}")
+
+
+def generate_sql_query(table_name, columns="*", conditions=None, order_by=None, limit=None):
+    """
+    Генерирует SQL-запрос для получения данных из таблицы.
+
+    :param table_name: Название таблицы, из которой нужно получить данные.
+    :param columns: Список колонок для выбора (по умолчанию все колонки '*').
+    :param conditions: Условия фильтрации в виде строки (например, 'age > 30').
+    :param order_by: Условие сортировки (например, 'age DESC').
+    :param limit: Лимит строк для выборки.
+    :return: Сгенерированный SQL-запрос в виде строки.
+    """
+    # Если передан список колонок, преобразуем его в строку
+    if isinstance(columns, list):
+        columns = ', '.join(columns)
+
+    # Начальный запрос
+    query = f"SELECT {columns} FROM {table_name}"
+
+    # Добавляем условия фильтрации, если они есть
+    if conditions:
+        query += f" WHERE {conditions}"
+
+    # Добавляем условие сортировки, если оно есть
+    if order_by:
+        query += f" ORDER BY {order_by}"
+
+    # Добавляем ограничение по количеству строк, если оно есть
+    if limit:
+        query += f" LIMIT {limit}"
+
+    return get_data_from_sql_query(query)
+
+
+def format_rows_as_string(rows, columns):
+    """
+    Форматирует данные строк и столбцов в виде строки, где сначала идут названия столбцов,
+    а затем строки данных, разделенные запятыми.
+
+    :param rows: Список строк данных.
+    :param columns: Список названий столбцов.
+    :return: Строка, представляющая данные в формате CSV.
+    """
+    # Формируем строку с названиями столбцов
+    result = ', '.join(columns) + '\n'
+
+    # Формируем строки с данными
+    for row in rows:
+        # Преобразуем каждую строку в строку, где значения разделены запятыми
+        result += ', '.join(map(str, row)) + '\n'
+
+    return result
+
+
+def get_data_from_sql_query(query):
+    """
+
+    :param query:
+    :return:
+    """
+    path_to_db = f"sqlite:///{local_data_path}/users.db"
+    engine = create_engine(path_to_db)
+    with engine.connect() as conn:
+        try:
+            result = conn.execute(text(query))
+            columns = list(result.keys())
+            rows = result.fetchall()
+        except Exception as ex:
+            print(ex)
+            rows = []
+    return format_rows_as_string(rows, columns)

@@ -296,7 +296,7 @@ class PrivateGptUi:
             model_path=path,
             n_ctx=settings().llm.context_window,
             n_parts=1,
-            # chat_format="functionary-v2"
+            # chat_format="chatml-function-calling"
         )
 
     @staticmethod
@@ -429,7 +429,8 @@ class PrivateGptUi:
         )
         available_functions = {
             "get_current_weather": get_current_weather,
-            "calculate": calculate
+            "calculate": calculate,
+            "generate_sql_query": generate_sql_query
         }
         for tool_call in response["choices"][0]["message"].get("tool_calls", []):
             function_name = tool_call["function"]["name"]
