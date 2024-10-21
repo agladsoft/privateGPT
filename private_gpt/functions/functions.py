@@ -77,4 +77,4 @@ def calculate(operation, number_one, number_two):
     elif operation == "divide":
         return f"Ответ является {number_one / number_two}"
     else:
-        raise ValueError("Unknown operation")
+        raise ValueError(f"Unknown operation {operation}")

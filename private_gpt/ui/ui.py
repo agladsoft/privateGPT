@@ -438,9 +438,9 @@ class PrivateGptUi:
             logger.info(function_response)
             messages.append(
                 {
-                    "tool_call_id": tool_call["id"],
                     "role": "tool",
                     "content": function_response,
+                    "tool_call_id": tool_call["id"],
                 }
             )
         response = self._chat_service.llm.create_chat_completion(
