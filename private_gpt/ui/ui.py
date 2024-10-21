@@ -296,7 +296,7 @@ class PrivateGptUi:
             model_path=path,
             n_ctx=settings().llm.context_window,
             n_parts=1,
-            # chat_format="chatml-function-calling"
+            chat_format="chatml-function-calling"
         )
 
     @staticmethod
@@ -424,15 +424,13 @@ class PrivateGptUi:
             top_k=top_k,
             top_p=top_p,
             tools=tools,
-            tool_choice={"type": "function", "function": {"name": "get_current_weather"}}
+            tool_choice="auto"
         )
-        if not (response_message := response["choices"][0]["message"].get("tool_calls")):
-            return response, files
         available_functions = {
             "get_current_weather": get_current_weather,
             "calculate": calculate
         }
-        for tool_call in response_message:
+        for tool_call in response["choices"][0]["message"].get("tool_calls", []):
             function_name = tool_call["function"]["name"]
             function_to_call = available_functions[function_name]
             function_args = json.loads(tool_call["function"]["arguments"])
@@ -497,17 +495,13 @@ class PrivateGptUi:
         logger.info(f"Начинается генерация ответа [uid - {uid}]")
         partial_text = ""
         try:
-            if isinstance(generator, dict):
-                history[-1][1] = generator["choices"][0]["message"]["content"]
-                yield history
-            else:
-                token: dict
-                for token in generator:
-                    for data in token["choices"]:
-                        letters = data["delta"].get("content", "") or ""
-                        partial_text += letters
-                        history[-1][1] = partial_text
-                        yield history
+            token: dict
+            for token in generator:
+                for data in token["choices"]:
+                    letters = data["delta"].get("content", "") or ""
+                    partial_text += letters
+                    history[-1][1] = partial_text
+                    yield history
         except Exception as ex:
             logger.error(f"Error - {ex}")
             partial_text += "\nСлишком большой контекст. Попробуйте уменьшить его " \
