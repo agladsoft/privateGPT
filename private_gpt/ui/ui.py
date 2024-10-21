@@ -296,7 +296,7 @@ class PrivateGptUi:
             model_path=path,
             n_ctx=settings().llm.context_window,
             n_parts=1,
-            chat_format="chatml-function-calling"
+            # chat_format="functionary-v2"
         )
 
     @staticmethod
@@ -418,6 +418,7 @@ class PrivateGptUi:
             *history_user,
             {"role": "user", "content": last_user_message},
         ]
+        self._chat_service.llm.chat_format = "chatml-function-calling"
         response = self._chat_service.llm.create_chat_completion(
             messages=messages,
             temperature=temp,
@@ -443,8 +444,11 @@ class PrivateGptUi:
                     "tool_call_id": tool_call["id"],
                 }
             )
+        self._chat_service.llm.chat_format = "chat_template.default"
         response = self._chat_service.llm.create_chat_completion(
             messages=messages,
+            tools=None,
+            tool_choice=None,
             stream=True,
             temperature=temp,
             top_k=top_k,
