@@ -1,10 +1,7 @@
 import os
 import logging
 from injector import inject, singleton
-from llama_index.llms import MockLLM
-from llama_index.llms.base import LLM
 from huggingface_hub.file_download import http_get
-from private_gpt.components.llm.prompt_helper import get_prompt_style
 from private_gpt.paths import models_path
 from private_gpt.settings.settings import Settings
 
