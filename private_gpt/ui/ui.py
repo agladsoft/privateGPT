@@ -421,7 +421,6 @@ class PrivateGptUi:
         self._chat_service.llm.chat_format = "chatml-function-calling"
         response = self._chat_service.llm.create_chat_completion(
             messages=messages,
-            max_tokens=settings().llm.context_window,
             temperature=temp,
             top_k=top_k,
             top_p=top_p,
@@ -449,7 +448,6 @@ class PrivateGptUi:
         self._chat_service.llm.chat_format = "chat_template.default"
         response = self._chat_service.llm.create_chat_completion(
             messages=messages,
-            max_tokens=settings().llm.context_window,
             tools=None,
             tool_choice=None,
             stream=True,
