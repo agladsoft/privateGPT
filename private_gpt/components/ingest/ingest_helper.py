@@ -221,26 +221,18 @@ class IngestionHelperLangchain:
             ".csv": pd.read_csv
         }
         if ext in dict_formats:
-            translator = GoogleTranslator(source='ru', target='en')
             df = dict_formats[ext](file_name, dtype=str, keep_default_na=False)
-            df.columns = [clean_column_name(translator, col) for col in df.columns]
-            df = df.map(lambda x: x.lower() if isinstance(x, str) else x)
             df = df.map(remove_time)
 
-            conn = sqlite3.connect(f'{local_data_path}/users.db')
-            df.to_sql(
-                clean_column_name(translator, os.path.basename(file_name).replace(ext, "")),
-                conn,
-                if_exists='replace',
-                index=False
-            )
-            conn.close()
+            # Формируем строку с названиями столбцов
+            result = ', '.join(df.columns) + '\n'
 
-            result_str = "\n\n".join(
-                "\n".join(f"{header}: {row[header]}" for header in df.columns)
-                for _, row in df.iterrows()
-            )
-            document.page_content = result_str.strip()
+            # Формируем строки с данными
+            for _, row in df.iterrows():
+                # Преобразуем каждую строку в строку, где значения разделены запятыми
+                result += ', '.join(row.values) + '\n'
+
+            document.page_content = result.strip()
         else:
             document.page_content = re.sub(r'(\s{3,}|\n{3,})', lambda match: match.group()[0]*3, document.page_content)
         return document
