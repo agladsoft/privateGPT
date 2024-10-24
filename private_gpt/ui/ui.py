@@ -418,33 +418,33 @@ class PrivateGptUi:
             *history_user,
             {"role": "user", "content": last_user_message},
         ]
-        self._chat_service.llm.chat_format = "chatml-function-calling"
-        response = self._chat_service.llm.create_chat_completion(
-            messages=messages,
-            temperature=temp,
-            top_k=top_k,
-            top_p=top_p,
-            tools=tools,
-            tool_choice="none"
-        )
-        available_functions = {
-            "get_current_weather": get_current_weather,
-            "calculate": calculate,
-            "generate_sql_query": generate_sql_query
-        }
-        for tool_call in response["choices"][0]["message"].get("tool_calls", []):
-            function_name = tool_call["function"]["name"]
-            function_to_call = available_functions[function_name]
-            function_args = json.loads(tool_call["function"]["arguments"])
-            function_response = function_to_call(**function_args)
-            logger.info(function_response)
-            messages.append(
-                {
-                    "role": "tool",
-                    "content": function_response,
-                    "tool_call_id": tool_call["id"],
-                }
-            )
+        # self._chat_service.llm.chat_format = "chatml-function-calling"
+        # response = self._chat_service.llm.create_chat_completion(
+        #     messages=messages,
+        #     temperature=temp,
+        #     top_k=top_k,
+        #     top_p=top_p,
+        #     tools=tools,
+        #     tool_choice="auto"
+        # )
+        # available_functions = {
+        #     "get_current_weather": get_current_weather,
+        #     "calculate": calculate,
+        #     "generate_sql_query": generate_sql_query
+        # }
+        # for tool_call in response["choices"][0]["message"].get("tool_calls", []):
+        #     function_name = tool_call["function"]["name"]
+        #     function_to_call = available_functions[function_name]
+        #     function_args = json.loads(tool_call["function"]["arguments"])
+        #     function_response = function_to_call(**function_args)
+        #     logger.info(function_response)
+        #     messages.append(
+        #         {
+        #             "role": "tool",
+        #             "content": function_response,
+        #             "tool_call_id": tool_call["id"],
+        #         }
+        #     )
         self._chat_service.llm.chat_format = "chat_template.default"
         response = self._chat_service.llm.create_chat_completion(
             messages=messages,
