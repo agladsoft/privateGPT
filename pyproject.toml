@@ -18,7 +18,7 @@ qdrant-client = "^1.6.9"
 chromadb = "0.4.15"
 docx2txt = "0.8"
 uvicorn = "^0.24.0.post1"
-llama-cpp-python = "0.3.1"
+llama-cpp-python = { version = "0.3.1", source = "pip", extras = ["use-pep517"] }
 python-docx = "^1.1.0"
 langchain = "0.3.3"
 unstructured = "0.6.10"
@@ -39,11 +39,6 @@ gradio-client = "0.10.0"
 langchain-community = "0.3.2"
 qrcode = "7.4.2"
 deep-translator = "1.9.0"
-
-[tool.poetry.dependencies.llama-cpp-python]
-version = "0.3.1"
-source = "pip"
-extras = ["use-pep517"]
 
 [tool.poetry.group.dev.dependencies]
 black = "^22"
