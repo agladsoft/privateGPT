@@ -40,6 +40,11 @@ langchain-community = "0.3.2"
 qrcode = "7.4.2"
 deep-translator = "1.9.0"
 
+[tool.poetry.dependencies.llama-cpp-python]
+version = "0.3.1"
+source = "pip"
+extras = ["use-pep517"]
+
 [tool.poetry.group.dev.dependencies]
 black = "^22"
 mypy = "^1.2"
