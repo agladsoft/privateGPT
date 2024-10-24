@@ -52,44 +52,44 @@ tools = [
             },
         },
     },
-    {
-        "type": "function",
-        "function": {
-            "name": "generate_sql_query",
-            "description": "Generates an SQL query to retrieve data from a table with optional filtering, sorting "
-                           "and limit",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "table_name": {
-                        "type": "string",
-                        "description": "The name of the table from which to retrieve the data"
-                    },
-                    "columns": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "The list of columns to be selected from the table. If not specified, "
-                                       "all columns (*) will be selected"
-                    },
-                    "conditions": {
-                        "type": "string",
-                        "description": "Optional conditions to filter the data (e.g., 'age > 30')"
-                    },
-                    "order_by": {
-                        "type": "string",
-                        "description": "Optional ordering for the data (e.g., 'age DESC')"
-                    },
-                    "limit": {
-                        "type": "number",
-                        "description": "Optional limit on the number of rows returned"
-                    }
-                },
-                "required": ["table_name"]
-            }
-        }
-    }
+    # {
+    #     "type": "function",
+    #     "function": {
+    #         "name": "generate_sql_query",
+    #         "description": "Generates an SQL query to retrieve data from a table with optional filtering, sorting "
+    #                        "and limit",
+    #         "parameters": {
+    #             "type": "object",
+    #             "properties": {
+    #                 "table_name": {
+    #                     "type": "string",
+    #                     "description": "The name of the table from which to retrieve the data"
+    #                 },
+    #                 "columns": {
+    #                     "type": "array",
+    #                     "items": {
+    #                         "type": "string"
+    #                     },
+    #                     "description": "The list of columns to be selected from the table. If not specified, "
+    #                                    "all columns (*) will be selected"
+    #                 },
+    #                 "conditions": {
+    #                     "type": "string",
+    #                     "description": "Optional conditions to filter the data (e.g., 'age > 30')"
+    #                 },
+    #                 "order_by": {
+    #                     "type": "string",
+    #                     "description": "Optional ordering for the data (e.g., 'age DESC')"
+    #                 },
+    #                 "limit": {
+    #                     "type": "number",
+    #                     "description": "Optional limit on the number of rows returned"
+    #                 }
+    #             },
+    #             "required": ["table_name"]
+    #         }
+    #     }
+    # }
 
 ]
 
