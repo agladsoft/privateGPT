@@ -425,7 +425,7 @@ class PrivateGptUi:
             top_k=top_k,
             top_p=top_p,
             tools=tools,
-            tool_choice="auto"
+            tool_choice="none"
         )
         available_functions = {
             "get_current_weather": get_current_weather,
