@@ -292,7 +292,7 @@ class PrivateGptUi:
                 )
 
         return Llama(
-            n_gpu_layers=-1,
+            n_gpu_layers=75,
             model_path=path,
             n_ctx=settings().llm.context_window,
             n_parts=1,
