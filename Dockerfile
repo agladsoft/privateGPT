@@ -3,7 +3,7 @@
 FROM nvidia/cuda:12.2.2-devel-ubuntu22.04 as base
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    CMAKE_ARGS="-DLLAMA_CUBLAS=ON" \
+    CMAKE_ARGS="-DGGML_CUDA=on" \
     FORCE_CMAKE=1 \
     TZ=Europe/Minsk
 
@@ -54,7 +54,8 @@ FROM base as dependencies
 WORKDIR /home/worker/app
 
 COPY pyproject.toml poetry.lock ./
-#RUN export CMAKE_ARGS="-DLLAMA_CUBLAS=on" && export FORCE_CMAKE=1
+ENV CMAKE_ARGS="-DGGML_CUDA=on" \
+    FORCE_CMAKE=1
 
 RUN poetry install --with local
 RUN poetry install --with ui
