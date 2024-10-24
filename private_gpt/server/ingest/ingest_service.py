@@ -19,11 +19,7 @@ from private_gpt.components.vector_store.vector_store_component import (
 from private_gpt.server.ingest.model import IngestedDoc
 from private_gpt.settings.settings import settings
 
-import os
-import pandas as pd
 from typing import Union, List
-from langchain.docstore.document import Document
-from langchain.embeddings import HuggingFaceEmbeddings
 from private_gpt.components.ingest.ingest_component import get_ingestion_component_langchain, BaseIngestComponentLangchain
 
 
@@ -89,9 +85,9 @@ class IngestService:
                 tmp.close()
                 path_to_tmp.unlink()
 
-    def bulk_ingest(self, files: List[str], chunk_size: int, chunk_overlap: int):
+    def bulk_ingest(self, files: List[str], chunk_size: int, chunk_overlap: int, uuid):
         logger.debug("Ingesting file_names=%s", [f for f in files])
-        return self.ingest_component.bulk_ingest(files, chunk_size, chunk_overlap)
+        return self.ingest_component.bulk_ingest(files, chunk_size, chunk_overlap, uuid)
 
     def list_ingested(self) -> list[IngestedDoc]:
         ingested_docs = []

@@ -1,15 +1,11 @@
 import abc
 import logging
 import threading
-import time
-from pathlib import Path
 from typing import Any
 
 from llama_index import (
     Document,
 )
-from llama_index.data_structs import IndexDict
-from llama_index.indices.base import BaseIndex
 
 from private_gpt.paths import local_data_path
 from private_gpt.settings.settings import Settings
@@ -17,8 +13,7 @@ from private_gpt.settings.settings import Settings
 import os
 import chromadb
 from typing import Union, List
-from langchain.vectorstores import Chroma
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import Chroma
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from private_gpt.components.ingest.ingest_helper import IngestionHelperLangchain
 from private_gpt.components.embedding.embedding_component import EmbeddingComponentLangchain
@@ -41,7 +36,7 @@ class BaseIngestComponentLangchain(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def bulk_ingest(self, files: List[str], chunk_size: int, chunk_overlap: int) -> list[Document]:
+    def bulk_ingest(self, files: List[str], chunk_size: int, chunk_overlap: int, uuid) -> list[Document]:
         pass
 
     @abc.abstractmethod
@@ -101,7 +96,7 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
     ) -> None:
         super().__init__(embedding_component, *args, **kwargs)
 
-    def ingest(self, file_name: str, chunk_size: int, chunk_overlap: int) -> Union[str, list[Document]]:
+    def ingest(self, file_name: str, chunk_size: int, chunk_overlap: int) -> Union[int, list[Document]]:
         logger.info("Ingesting file_name=%s", file_name)
         load_documents: List[Document] = [
             IngestionHelperLangchain._load_file_to_documents(path) for path in [file_name]
@@ -121,7 +116,7 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
         logger.info("Saving the documents in the index and doc store")
         return message
 
-    def bulk_ingest(self, files: str, chunk_size: int, chunk_overlap: int) -> str:
+    def bulk_ingest(self, files: str, chunk_size: int, chunk_overlap: int, uuid) -> int:
         load_documents: List[Document] = [
             IngestionHelperLangchain._load_file_to_documents(path) for path in files
         ]
@@ -129,10 +124,11 @@ class SimpleIngestComponentLangchain(BaseIngestComponentWithIndexLangchain):
             chunk_size=chunk_size, chunk_overlap=chunk_overlap
         )
         message, documents = IngestionHelperLangchain.transform_file_into_documents(load_documents, text_splitter)
-        ids: List[str] = [
-            f"{os.path.basename(doc.metadata['source']).replace('.txt', '')}{i}"
-            for i, doc in enumerate(documents)
-        ]
+        if uuid:
+            ids: List[str] = [f"{uuid}_{i}" for i, doc in enumerate(documents)]
+        else:
+            ids: List[str] = [f"{os.path.basename(doc.metadata['source']).replace('.txt', '')}_{i}"
+                              for i, doc in enumerate(documents)]
         self._save_docs(documents, ids)
         return message
 

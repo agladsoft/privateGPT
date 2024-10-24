@@ -5,7 +5,6 @@ import os.path
 import sys
 import threading
 import time
-from pathlib import Path
 from typing import Any, List, Literal
 from gradio.queueing import Queue, Event
 import gradio as gr  # type: ignore
@@ -15,12 +14,11 @@ from gradio.blocks import BlockFunction
 from injector import inject, singleton
 from pydantic import BaseModel
 
-from private_gpt.constants import PROJECT_ROOT_PATH
 from private_gpt.di import global_injector
 from private_gpt.server.chat.chat_service import ChatService
 from private_gpt.server.chunks.chunks_service import Chunk, ChunksService
 from private_gpt.server.ingest.ingest_service import IngestService
-from private_gpt.ui.images import FAVICON_PATH, QRCODE_PATH
+from private_gpt.ui.images import *
 from private_gpt.ui.logging_custom import FileLogger
 
 import re
@@ -35,10 +33,14 @@ from gradio_client.documentation import document
 from private_gpt.templates.template import create_doc
 from private_gpt.settings.settings import settings
 import chromadb
-from langchain.vectorstores import Chroma
+import requests
+from gradio_modal import Modal
+from langchain_community.vectorstores import Chroma
 from private_gpt.paths import local_data_path
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from private_gpt.paths import models_cache_path
+import socket
+import qrcode.image.svg
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 logger = logging.getLogger(__name__)
@@ -52,42 +54,11 @@ DATA_QUESTIONS = os.path.join(PROJECT_ROOT_PATH, "data_questions")
 if not os.path.exists(DATA_QUESTIONS):
     os.mkdir(DATA_QUESTIONS)
 
-THIS_DIRECTORY_RELATIVE = Path(__file__).parent.relative_to(PROJECT_ROOT_PATH)
-# Should be "private_gpt/ui/avatar-bot.ico"
-AVATAR_USER = THIS_DIRECTORY_RELATIVE / "icons8-человек-96.png"
-AVATAR_BOT = THIS_DIRECTORY_RELATIVE / "icons8-bot-96.png"
-JS = """
-function disable_btn() {
-    var elements = document.getElementsByClassName('wrap default minimal svelte-1occ011 translucent');
+IP_ADDRESS = f"{socket.gethostbyname(socket.gethostname())}:{settings().server.port}"
+img = qrcode.make(IP_ADDRESS)
+with open(QRCODE_PATH, 'wb') as qr:
+    img.save(qr)
 
-    for (var i = 0; i < elements.length; i++) {
-        if (elements[i].classList.contains('generating') || !elements[i].classList.contains('hide')) {
-            // Выполнить любое действие здесь
-            console.log('Элемент содержит класс generating');
-            // Например:
-            document.getElementById('component-35').disabled = true
-            setTimeout(() => { document.getElementById('component-35').disabled = false }, 180000);
-        }
-    }
-}
-"""
-
-UI_TAB_TITLE = "Ruscon AI"
-
-SOURCES_SEPARATOR = "\n\n Документы: \n"
-
-MODES = ["ВНД", "Свободное общение", "Получение документов"]
-MAX_NEW_TOKENS: int = 1500
-LINEBREAK_TOKEN: int = 13
-SYSTEM_TOKEN: int = 1788
-USER_TOKEN: int = 1404
-BOT_TOKEN: int = 9225
-
-ROLE_TOKENS: dict = {
-    "user": USER_TOKEN,
-    "bot": BOT_TOKEN,
-    "system": SYSTEM_TOKEN
-}
 
 BLOCK_CSS = """
 
@@ -114,7 +85,74 @@ tr span {
     color: white;
 }
 
+@media (min-width: 1024px) {
+    .modal-container.svelte-7knbu5 {
+        max-width: 50% !important
+    }
+}
+
+
+.gap.svelte-1m1obck {
+    padding: 4%
+}
+
+#login_btn {
+    width: 250px;
+    height: 40px;
+}
+
 """
+
+JS = """
+function disable_btn() {
+    var elements = document.getElementsByClassName('wrap default minimal svelte-1occ011 translucent');
+
+    for (var i = 0; i < elements.length; i++) {
+        if (elements[i].classList.contains('generating') || !elements[i].classList.contains('hide')) {
+            // Выполнить любое действие здесь
+            console.log('Элемент содержит класс generating');
+            // Например:
+            document.getElementById('component-35').disabled = true
+            setTimeout(() => { document.getElementById('component-35').disabled = false }, 180000);
+        }
+    }
+}
+"""
+
+LOCAL_STORAGE = """
+function() {
+    globalThis.setStorage = (key, value) => {
+        localStorage.setItem(key, JSON.stringify(value))
+    }
+    globalThis.removeStorage = (key) => {
+        localStorage.removeItem(key)
+    }
+    globalThis.getStorage = (key, value) => {
+        return JSON.parse(localStorage.getItem(key))
+    }
+    const access_token = getStorage('access_token')
+    return [access_token];
+}
+"""
+
+UI_TAB_TITLE = "Ruscon AI"
+
+SOURCES_SEPARATOR = "\n\n Документы: \n"
+
+MODES = ["ВНД", "Свободное общение", "Получение документов"]
+MAX_NEW_TOKENS: int = 1500
+LINEBREAK_TOKEN: int = 13
+SYSTEM_TOKEN: int = 1788
+USER_TOKEN: int = 1404
+BOT_TOKEN: int = 9225
+CHUNK_SIZE: int = 1408
+CHUNK_OVERLAP: int = 400
+
+ROLE_TOKENS: dict = {
+    "user": USER_TOKEN,
+    "bot": BOT_TOKEN,
+    "system": SYSTEM_TOKEN
+}
 
 
 class Modes:
@@ -226,6 +264,8 @@ class PrivateGptUi:
         self.mode = MODES[0]
         self._system_prompt = self._get_default_system_prompt(self.mode)
         self.tiny_db = TinyDB(f'{DATA_QUESTIONS}/tiny_db.json', indent=4, ensure_ascii=False)
+
+        self.auth_token = None
 
     @staticmethod
     def init_model():
@@ -343,21 +383,7 @@ class PrivateGptUi:
             os.path.basename(ingested_document["source"])
             for ingested_document in db["metadatas"]
         }
-        return pd.DataFrame({"Название файлов": list(files)})
-
-    def delete_doc(self, documents: str):
-        logger.info(f"Documents is {documents}")
-        for_delete_ids: list = []
-        list_documents: list[str] = documents.strip().split("\n")
-        db = self._ingest_service.list_ingested_langchain()
-
-        for ingested_document, doc_id in zip(db["metadatas"], db["ids"]):
-            print(ingested_document)
-            if os.path.basename(ingested_document["source"]) in list_documents:
-                for_delete_ids.append(doc_id)
-        if for_delete_ids:
-            self._ingest_service.delete(for_delete_ids)
-        return "", self._list_ingested_files()
+        return list(files)
 
     def user(self, message, history):
         uid = uuid.uuid4()
@@ -389,39 +415,8 @@ class PrivateGptUi:
         logger.info(f"Остановлено генерирование ответа. UID - [{uid}]")
         self.semaphore.release()
 
-    @staticmethod
-    def get_message_tokens(model, role: str, content: str) -> list:
-        """
-
-        :param model:
-        :param role:
-        :param content:
-        :return:
-        """
-        message_tokens: list = model.tokenize(content.encode("utf-8"))
-        message_tokens.insert(1, ROLE_TOKENS[role])
-        message_tokens.insert(2, LINEBREAK_TOKEN)
-        message_tokens.append(model.token_eos())
-        return message_tokens
-
-    def get_system_tokens(self, model) -> list:
-        """
-
-        :param model:
-        :return:
-        """
-        system_message: dict = {"role": "system", "content": self._system_prompt}
-        return self.get_message_tokens(model, **system_message)
-
     def get_message_generator(self, history, retrieved_docs, mode, top_k, top_p, temp, uid):
         model = self._chat_service.llm
-        tokens = self.get_system_tokens(model)[:]
-        tokens.append(LINEBREAK_TOKEN)
-
-        for user_message, bot_message in history[-4:-1]:
-            message_tokens = self.get_message_tokens(model=model, role="user", content=user_message)
-            tokens.extend(message_tokens)
-
         last_user_message = history[-1][0]
         pattern = r'<a\s+[^>]*>(.*?)</a>'
         files = re.findall(pattern, retrieved_docs)
@@ -438,19 +433,29 @@ class PrivateGptUi:
                                 f"Прошу предоставить ежегодный оплачиваемый отпуск с " \
                                 f"(дата начала отпуска в формате DD.MM.YYYY) по " \
                                 f"(дата окончания отпуска в формате DD.MM.YYYY)."
-        message_tokens = self.get_message_tokens(model=model, role="user", content=last_user_message)
-        tokens.extend(message_tokens)
         logger.info(f"Вопрос был полностью сформирован [uid - {uid}]")
         f_logger.finfo(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Вопрос: {history[-1][0]} - "
                        f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n")
 
-        role_tokens = [model.token_bos(), BOT_TOKEN, LINEBREAK_TOKEN]
-        tokens.extend(role_tokens)
-        generator = model.generate(
-            tokens,
+        history_user = [
+            {"role": "user", "content": user_message}
+            for user_message, _ in history[-4:-1]
+        ]
+        generator = model.create_chat_completion(
+            messages=[
+                {
+                    "role": "system", "content": self._system_prompt
+                },
+                *history_user,
+                {
+                    "role": "user", "content": last_user_message
+                },
+
+            ],
+            stream=True,
+            temperature=temp,
             top_k=top_k,
-            top_p=top_p,
-            temp=temp
+            top_p=top_p
         )
         return model, generator, files
 
@@ -533,18 +538,18 @@ class PrivateGptUi:
         elif mode == Modes.DOC:
             model, generator, files = self.get_message_generator(history, retrieved_docs, mode, top_k, top_p, temp, uid)
         try:
-            for i, token in enumerate(generator):
-                if token == model.token_eos() or (MAX_NEW_TOKENS is not None and i >= MAX_NEW_TOKENS):
-                    break
-                letters = model.detokenize([token]).decode("utf-8", "ignore")
-                partial_text += letters
-                f_logger.finfo(letters)
-                history[-1][1] = partial_text
-                yield history
+            token: dict
+            for token in generator:
+                for data in token["choices"]:
+                    letters = data["delta"].get("content", "")
+                    partial_text += letters
+                    f_logger.finfo(letters)
+                    history[-1][1] = partial_text
+                    yield history
         except Exception as ex:
             logger.error(f"Error - {ex}")
             partial_text += "\nСлишком большой контекст. " \
-                                "Попробуйте уменьшить его или измените количество выдаваемого контекста в настройках"
+                            "Попробуйте уменьшить его или измените количество выдаваемого контекста в настройках"
             history[-1][1] = partial_text
             yield history
             self.semaphore.release()
@@ -563,12 +568,31 @@ class PrivateGptUi:
             case Modes.DOC:
                 yield from self.bot(history, context, Modes.DOC, top_k, top_p, temp, uid, scores)
 
-    def _upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int):
+    def update_file(self, files: List[tempfile.TemporaryFile], chunk_size, chunk_overlap, uuid, uuid_old):
+        self.delete_file(uuid_old)
+        len_chunks = self._ingest_service.bulk_ingest(files, chunk_size, chunk_overlap, uuid)
+        return f"Обновлено на {len_chunks} фрагментов! Можно задавать вопросы.", \
+            gr.update(choices=self._list_ingested_files())
+
+    def upload_file(self, files: List[tempfile.TemporaryFile], chunk_size: int, chunk_overlap: int, uuid: str = None):
         logger.debug("Loading count=%s files", len(files))
-        self.load_model(is_load_model=False)
-        message = self._ingest_service.bulk_ingest([f.name for f in files], chunk_size, chunk_overlap)
-        self.load_model(is_load_model=True)
-        return message, self._list_ingested_files()
+        len_chunks = self._ingest_service.bulk_ingest(files, chunk_size, chunk_overlap, uuid)
+        return f"Загружено {len_chunks} фрагментов! Можно задавать вопросы.", \
+            gr.update(choices=self._list_ingested_files())
+
+    def delete_file(self, uuid):
+        logger.info(f"UUID is {uuid}")
+        db = self._ingest_service.list_ingested_langchain()
+
+        for_delete_ids: list = [
+            doc_id
+            for ingested_document, doc_id in zip(db["metadatas"], db["ids"])
+            if doc_id.rsplit("_", maxsplit=1)[0] in uuid or os.path.basename(ingested_document['source']) in uuid
+        ]
+        if for_delete_ids:
+            self._ingest_service.delete(for_delete_ids)
+        return f"Удалено {len(for_delete_ids)} фрагментов! Можно задавать вопросы.", \
+            gr.update(choices=self._list_ingested_files())
 
     def get_analytics(self):
         try:
@@ -577,22 +601,72 @@ class PrivateGptUi:
             return pd.DataFrame(self.tiny_db.all())
 
     @staticmethod
-    def login(username: str = "timur", password: str = "12345678") -> bool:
+    def login(username, password):
         """
 
         :param username:
         :param password:
         :return:
         """
-        import csv
+        response = requests.post(
+            f"http://{IP_ADDRESS}/token",
+            data={"username": username, "password": password},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        if response.status_code == 200:
+            return {"access_token": response.json()["access_token"], "is_success": True}
+        logger.error(response.json()["detail"])
+        return {"access_token": None, "is_success": False, "message": response.json()["detail"]}
 
-        AUTH_FILE = os.path.join(PROJECT_ROOT_PATH, "server/utils/auth.csv")
-        with open(AUTH_FILE) as f:
-            file_data: csv.reader = csv.reader(f)
-            headers: list[str] = next(file_data)
-            users: list[dict[str, str]] = [dict(zip(headers, i)) for i in file_data]
-        user_from_db = list(filter(lambda user: user["username"] == username and user["password"] == password, users))
-        return bool(user_from_db)
+    def get_current_user_info(self, local_data, is_visible: bool = False):
+        """
+
+        :param local_data:
+        :param is_visible:
+        :return:
+        """
+        if isinstance(local_data, dict) and local_data.get("is_success", False):
+            response = requests.get(
+                f"http://{IP_ADDRESS}/users/me",
+                headers={"Authorization": f"Bearer {local_data['access_token']}"}
+            )
+            logger.info(f"User is {response.json().get('username')}")
+            is_logged_in = response.status_code == 200
+            if is_logged_in:
+                is_visible = False
+        else:
+            is_logged_in = False
+        obj_tabs = [local_data] + [gr.update(visible=is_logged_in) for _ in range(3)]
+        if is_logged_in:
+            obj_tabs.append(gr.update(value="Выйти", icon=str(LOGOUT_ICON)))
+        else:
+            obj_tabs.append(gr.update(value="Войти", icon=str(LOGIN_ICON)))
+        obj_tabs.append(gr.update(visible=is_visible))
+        if isinstance(local_data, dict):
+            obj_tabs.append(local_data.get("message", MESSAGE_LOGIN))
+        else:
+            obj_tabs.append(MESSAGE_LOGIN)
+        obj_tabs.append(gr.update(choices=self._list_ingested_files()))
+        return obj_tabs
+
+    def login_or_logout(self, local_data, login_btn, is_visible):
+        """
+
+        :param local_data:
+        :param login_btn:
+        :param is_visible:
+        :return:
+        """
+        data = self.get_current_user_info(local_data, is_visible=is_visible)
+        if isinstance(data[0], dict) and data[0].get("access_token"):
+            obj_tabs = [gr.update(visible=False)] + [gr.update(visible=False) for _ in range(3)]
+            obj_tabs.append(gr.update(value="Войти", icon=str(LOGIN_ICON)))
+            obj_tabs.append(gr.update(choices=self._list_ingested_files()))
+            return obj_tabs
+        obj_tabs = [gr.update(visible=True)] + [gr.update(visible=False) for _ in range(3)]
+        obj_tabs.append(login_btn)
+        obj_tabs.append(gr.update(choices=self._list_ingested_files()))
+        return obj_tabs
 
     def calculate_analytics(self, messages, analyse=None):
         message = messages[-1][0] if messages else None
@@ -619,7 +693,7 @@ class PrivateGptUi:
         return self.get_analytics()
 
     def _build_ui_blocks(self) -> gr.Blocks:
-        logger.debug("Creating the UI blocks")
+        logger.info("Creating the UI blocks")
         with Blocks(
             title=UI_TAB_TITLE,
             theme=gr.themes.Soft().set(
@@ -637,14 +711,22 @@ class PrivateGptUi:
                 button_primary_background_fill_dark="#1f419b",
                 shadow_drop_lg="5px 5px 5px 5px rgb(0 0 0 / 0.1)"
             ),
-            css=BLOCK_CSS
+            css=BLOCK_CSS,
+            js=JS
         ) as blocks:
+            # Ваш логотип и текст заголовка
             logo_svg = f'<img src="{FAVICON_PATH}" width="48px" style="display: inline">'
-            gr.HTML(
-                f"""<h1><center>{logo_svg} Виртуальный ассистент Рускон (бета-версия)</center></h1>"""
-            )
+            header_html = f"""<h1><center>{logo_svg} Виртуальный ассистент Рускон (бета-версия)</center></h1>"""
+
+            with gr.Row():
+                gr.HTML(header_html)
+                login_btn = gr.DuplicateButton("Войти", variant="primary", size="lg", elem_id="login_btn",
+                                               icon=str(LOGIN_ICON))
+
             uid = gr.State(None)
             scores = gr.State(None)
+            is_visible = gr.State(True)
+            local_data = gr.JSON({}, visible=False)
 
             with gr.Tab("Чат"):
                 with gr.Row():
@@ -681,7 +763,7 @@ class PrivateGptUi:
                     dislike = gr.Button(value="👎 Не понравилось")
                     # stop = gr.Button(value="⛔ Остановить")
                     # regenerate = gr.Button(value="🔄 Повторить")
-                    clear = gr.Button(value="🗑️ Очистить")
+                    clear = gr.ClearButton(value="🗑️ Очистить")
 
                 with gr.Row():
                     gr.HTML(
@@ -691,7 +773,7 @@ class PrivateGptUi:
                         "</h5>"
                     )
 
-            with gr.Tab("Документы", visible=False):
+            with gr.Tab("Документы", visible=False) as documents_tab:
                 with gr.Row():
                     with gr.Column(scale=3):
                         upload_button = gr.Files(
@@ -699,28 +781,17 @@ class PrivateGptUi:
                             file_count="multiple"
                         )
                         file_warning = gr.Markdown("Фрагменты ещё не загружены!")
-                        find_doc = gr.Textbox(
-                            label="Отправить сообщение",
-                            show_label=False,
-                            info=" Напишите названия файлов, которые нужно удалить из базы ",
-                            placeholder="👉 Напишите название документа",
-                            container=False
+
+                    with gr.Column(scale=7):
+                        files_selected = gr.Dropdown(
+                            choices=self._list_ingested_files(),
+                            label="Выберите файлы для удаления",
+                            value=None,
+                            multiselect=True
                         )
                         delete = gr.Button("🧹 Удалить", variant="primary")
-                    with gr.Column(scale=7):
-                        ingested_dataset = gr.List(
-                            self._list_ingested_files,
-                            headers=["Название файлов"],
-                            interactive=False,
-                            render=False,  # Rendered under the button
-                        )
-                        ingested_dataset.change(
-                            self._list_ingested_files,
-                            outputs=ingested_dataset,
-                        )
-                        ingested_dataset.render()
 
-            with gr.Tab("Настройки", visible=False):
+            with gr.Tab("Настройки", visible=False) as settings_tab:
                 with gr.Row(elem_id="model_selector_row"):
                     models: list = [
                         f"{settings().local.llm_hf_repo_id.split('/')[1]}/{settings().local.llm_hf_model_file}"
@@ -733,10 +804,7 @@ class PrivateGptUi:
                         container=False,
                     )
                 with gr.Accordion("QR Code", open=False):
-                    qrcode = f'<img src="{QRCODE_PATH}"'
-                    gr.Markdown(
-                        f"""<h1><center>{qrcode} QR CODE</center></h1>"""
-                    )
+                    gr.Image(QRCODE_PATH, width=400, height=400)
                 with gr.Accordion("Параметры", open=False):
                     with gr.Tab(label="Параметры извлечения фрагментов из текста"):
                         limit = gr.Slider(
@@ -751,7 +819,7 @@ class PrivateGptUi:
                         chunk_size = gr.Slider(
                             minimum=128,
                             maximum=1792,
-                            value=1408,
+                            value=CHUNK_SIZE,
                             step=128,
                             interactive=True,
                             label="Размер фрагментов",
@@ -759,7 +827,7 @@ class PrivateGptUi:
                         chunk_overlap = gr.Slider(
                             minimum=0,
                             maximum=400,
-                            value=400,
+                            value=CHUNK_OVERLAP,
                             step=10,
                             interactive=True,
                             label="Пересечение"
@@ -810,7 +878,7 @@ class PrivateGptUi:
                             show_label=True
                         )
 
-            with gr.Tab("Логи диалогов", visible=False):
+            with gr.Tab("Логи диалогов", visible=False) as logging_tab:
                 with gr.Row():
                     with gr.Column():
                         analytics = gr.DataFrame(
@@ -820,21 +888,72 @@ class PrivateGptUi:
                             # column_widths=[200]
                         )
 
+            with Modal(visible=False) as modal:
+                with gr.Column(variant="panel"):
+                    gr.HTML("<h1><center>Вход</center></h1>")
+                    message_login = gr.HTML(MESSAGE_LOGIN)
+                    login = gr.Textbox(
+                        label="Логин",
+                        placeholder="Введите логин",
+                        show_label=True,
+                        max_lines=1
+                    )
+                    password = gr.Textbox(
+                        label="Пароль",
+                        placeholder="Введите пароль",
+                        show_label=True,
+                        type="password"
+                    )
+                    submit_login = gr.Button("👤 Войти", variant="primary")
+                    cancel_login = gr.Button("⛔ Отмена", variant="secondary")
+
+            submit_login.click(
+                fn=self.login,
+                inputs=[login, password],
+                outputs=[local_data]
+            ).success(
+                fn=self.get_current_user_info,
+                inputs=[local_data, is_visible],
+                outputs=[local_data, documents_tab, settings_tab, logging_tab, login_btn, modal, message_login,
+                         files_selected]
+            ).success(
+                fn=None,
+                inputs=[local_data],
+                outputs=None,
+                js="(v) => {setStorage('access_token', v)}"
+            )
+
+            login_btn.click(
+                fn=self.login_or_logout,
+                inputs=[local_data, login_btn, is_visible],
+                outputs=[modal, documents_tab, settings_tab, logging_tab, login_btn, files_selected]
+            ).success(
+                fn=None,
+                inputs=None,
+                outputs=[local_data],
+                js="() => {removeStorage('access_token')}"
+            )
+            cancel_login.click(
+                fn=lambda: Modal(visible=False),
+                inputs=None,
+                outputs=modal
+            )
+
             mode.change(
                 self._set_current_mode, inputs=mode, outputs=system_prompt_input
             )
 
             upload_button.upload(
-                self._upload_file,
+                self.upload_file,
                 inputs=[upload_button, chunk_size, chunk_overlap],
-                outputs=[file_warning, ingested_dataset],
+                outputs=[file_warning, files_selected],
             )
 
             # Delete documents from db
             delete.click(
-                fn=self.delete_doc,
-                inputs=find_doc,
-                outputs=[find_doc, ingested_dataset]
+                fn=self.delete_file,
+                inputs=files_selected,
+                outputs=[file_warning, files_selected]
             )
 
             # Pressing Enter
@@ -909,6 +1028,15 @@ class PrivateGptUi:
             )
             # blocks.auth = self.login
             # blocks.auth_message = "Введите логин и пароль, чтобы войти"
+
+            blocks.load(
+                fn=self.get_current_user_info,
+                inputs=[local_data],
+                outputs=[local_data, documents_tab, settings_tab, logging_tab, login_btn, modal, message_login,
+                         files_selected],
+                js=LOCAL_STORAGE
+            )
+
         return blocks
 
     def get_ui_blocks(self) -> gr.Blocks:

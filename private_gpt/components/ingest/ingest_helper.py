@@ -1,16 +1,14 @@
 import os
 import re
+import magic
 import logging
 import subprocess
 from pathlib import Path
-
 from docx import Document as DocDocument
-from langchain.schema import Document
-# from llama_index import Document
 from llama_index.readers import JSONReader, StringIterableReader
 from llama_index.readers.file.base import DEFAULT_FILE_READER_CLS
 
-from langchain.document_loaders import (
+from langchain_community.document_loaders import (
     CSVLoader,
     EverNoteLoader,
     PDFMinerLoader,
@@ -21,10 +19,12 @@ from langchain.document_loaders import (
     UnstructuredODTLoader,
     UnstructuredPowerPointLoader,
     UnstructuredWordDocumentLoader,
+    UnstructuredExcelLoader
 )
-from typing import Optional, List, Union, Tuple
+from typing import Optional, List
 from langchain.docstore.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,8 @@ FILE_READER_CLS.update(
 
 LOADER_MAPPING: dict = {
     ".csv": (CSVLoader, {}),
+    ".xlsx": (UnstructuredExcelLoader, {}),
+    ".xls": (UnstructuredExcelLoader, {}),
     ".doc": (UnstructuredWordDocumentLoader, {}),
     ".docx": (UnstructuredWordDocumentLoader, {}),
     ".enex": (EverNoteLoader, {}),
@@ -49,6 +51,18 @@ LOADER_MAPPING: dict = {
     ".ppt": (UnstructuredPowerPointLoader, {}),
     ".pptx": (UnstructuredPowerPointLoader, {}),
     ".txt": (TextLoader, {"encoding": "utf8"}),
+}
+
+MIME_TYPE: dict = {
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".doc": "application/msword",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".xls": "application/vnd.ms-excel",
+    ".csv": "text/csv",
+    ".txt": "text/plain",
+    ".pdf": "application/pdf",
+    ".jpg": "image/jpeg",
+    ".png": "image/png"
 }
 
 
@@ -133,7 +147,7 @@ class IngestionHelperLangchain:
     @staticmethod
     def transform_file_into_documents(
         load_documents: List[Document], text_splitter: RecursiveCharacterTextSplitter
-    ) -> tuple[str, list[Document]]:
+    ) -> tuple[int, list[Document]]:
         def process_text(text: str) -> Optional[str]:
             """
 
@@ -152,17 +166,49 @@ class IngestionHelperLangchain:
             if not doc.page_content:
                 continue
             fixed_documents.append(doc)
-        return f"Загружено {len(fixed_documents)} фрагментов! Можно задавать вопросы.", fixed_documents
+        return len(fixed_documents), fixed_documents
 
     @staticmethod
     def _load_file_to_documents(file_name: str) -> Document:
+        def remove_time(date_str):
+            if isinstance(date_str, str):
+                # Поиск даты в формате ГГГГ-ММ-ДД с последующим временем
+                return re.sub(r'\s*00:00:00$', '', date_str)
+            return date_str
+
+        def get_extension(file_name_: str) -> str:
+            mime_type: str = magic.Magic(mime=True).from_file(file_name_)
+            for ext_, mime in MIME_TYPE.items():
+                if mime_type == mime:
+                    return ext_
+            return ""
+
         logger.debug("Transforming file_name=%s into documents", file_name)
-        ext: str = "." + file_name.rsplit(".", 1)[-1]
-        assert ext in LOADER_MAPPING
+        file_name_without_ext, ext = os.path.splitext(file_name)
+        if ext == "" or ext not in MIME_TYPE:
+            ext = get_extension(file_name)
+        assert ext in LOADER_MAPPING, f"Не поддерживается формат {ext}"
         loader_class, loader_args = LOADER_MAPPING[ext]
         loader = loader_class(file_name, **loader_args)
         logger.debug("Specific reader found for extension=%s", ext)
-        document = loader.load()[0]
-        document.page_content = re.sub(r'(\s{3,}|\n{3,})', lambda match: match.group()[0]*3,
-                                       document.page_content)
+        try:
+            document = loader.load()[0]
+        except OSError as ex:
+            logger.error(f"Exception is {ex}. Type of {type(ex)}")
+            raise BrokenPipeError("Загружен битый файл")
+        dict_formats = {
+            ".xlsx": pd.read_excel,
+            ".xls": pd.read_excel,
+            ".csv": pd.read_csv
+        }
+        if ext in dict_formats:
+            df = dict_formats[ext](file_name, dtype=str, keep_default_na=False)
+            df = df.map(remove_time)
+            result_str = "\n\n".join(
+                "\n".join(f"{header}: {row[header]}" for header in df.columns)
+                for _, row in df.iterrows()
+            )
+            document.page_content = result_str.strip()
+        else:
+            document.page_content = re.sub(r'(\s{3,}|\n{3,})', lambda match: match.group()[0]*3, document.page_content)
         return document
